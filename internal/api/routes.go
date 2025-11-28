@@ -33,6 +33,7 @@ func setupRoutes(router *mux.Router, handler *Handler, token string, logger *log
 	// Data endpoints
 	authAPI.HandleFunc("/subjects", handler.HandleGetSubjects).Methods("GET")
 	authAPI.HandleFunc("/assignments", handler.HandleGetAssignments).Methods("GET")
+	authAPI.HandleFunc("/assignments/snapshots", handler.HandleGetAssignmentSnapshots).Methods("GET")
 	authAPI.HandleFunc("/reviews", handler.HandleGetReviews).Methods("GET")
 	authAPI.HandleFunc("/statistics/latest", handler.HandleGetLatestStatistics).Methods("GET")
 	authAPI.HandleFunc("/statistics", handler.HandleGetStatistics).Methods("GET")

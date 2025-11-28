@@ -19,6 +19,9 @@ type SyncService interface {
 	// SyncStatistics syncs only statistics
 	SyncStatistics(ctx context.Context) SyncResult
 
+	// CreateAssignmentSnapshot creates a daily snapshot of assignment distribution
+	CreateAssignmentSnapshot(ctx context.Context) error
+
 	// IsSyncing returns true if a sync operation is currently in progress
 	IsSyncing() bool
 }

@@ -113,6 +113,16 @@ func (s *Service) SyncAll(ctx context.Context) ([]domain.SyncResult, error) {
 	s.logger.WithField("records_updated", statisticsResult.RecordsUpdated).Info("Statistics sync completed successfully")
 
 	s.logger.WithField("total_results", len(results)).Info("Full sync operation completed successfully")
+
+	// 5. Create assignment snapshot after successful sync
+	s.logger.Info("Creating assignment snapshot...")
+	if err := s.CreateAssignmentSnapshot(ctx); err != nil {
+		// Log the error but don't fail the entire sync
+		s.logger.WithError(err).Warn("Failed to create assignment snapshot, but sync completed successfully")
+	} else {
+		s.logger.Info("Assignment snapshot created successfully")
+	}
+
 	return results, nil
 }
 
@@ -313,4 +323,30 @@ func (s *Service) SyncStatistics(ctx context.Context) domain.SyncResult {
 	result.RecordsUpdated = 1
 	result.Success = true
 	return result
+}
+
+// CreateAssignmentSnapshot creates a daily snapshot of assignment distribution by SRS stage and subject type
+func (s *Service) CreateAssignmentSnapshot(ctx context.Context) error {
+	s.logger.Debug("Calculating assignment snapshot for today")
+
+	// Use today's date for the snapshot
+	today := time.Now().Truncate(24 * time.Hour)
+
+	// Calculate the snapshot from current assignments
+	snapshots, err := s.store.CalculateAssignmentSnapshot(ctx, today)
+	if err != nil {
+		return fmt.Errorf("failed to calculate assignment snapshot: %w", err)
+	}
+
+	s.logger.WithField("snapshot_count", len(snapshots)).Debug("Calculated assignment snapshots")
+
+	// Store each snapshot record
+	for _, snapshot := range snapshots {
+		if err := s.store.UpsertAssignmentSnapshot(ctx, snapshot); err != nil {
+			return fmt.Errorf("failed to upsert assignment snapshot: %w", err)
+		}
+	}
+
+	s.logger.WithField("date", today.Format("2006-01-02")).Info("Assignment snapshot created successfully")
+	return nil
 }

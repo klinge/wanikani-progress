@@ -107,6 +107,11 @@ type DataStore interface {
     GetStatistics(ctx context.Context, dateRange *DateRange) ([]StatisticsSnapshot, error)
     GetLatestStatistics(ctx context.Context) (*StatisticsSnapshot, error)
     
+    // Assignment Snapshots
+    UpsertAssignmentSnapshot(ctx context.Context, snapshot AssignmentSnapshot) error
+    GetAssignmentSnapshots(ctx context.Context, dateRange *DateRange) ([]AssignmentSnapshot, error)
+    CalculateAssignmentSnapshot(ctx context.Context, date time.Time) ([]AssignmentSnapshot, error)
+    
     // Sync tracking
     GetLastSyncTime(ctx context.Context, dataType DataType) (*time.Time, error)
     SetLastSyncTime(ctx context.Context, dataType DataType, timestamp time.Time) error
@@ -137,6 +142,9 @@ type SyncService interface {
     SyncAssignments(ctx context.Context) (SyncResult, error)
     SyncReviews(ctx context.Context) (SyncResult, error)
     SyncStatistics(ctx context.Context) (SyncResult, error)
+    
+    // Create assignment snapshot after successful sync
+    CreateAssignmentSnapshot(ctx context.Context) error
     
     // Check if sync is in progress
     IsSyncing() bool
@@ -172,12 +180,13 @@ type SyncResult struct {
 ```
 GET  /api/subjects?type=kanji&level=5
 GET  /api/assignments?srs_stage=apprentice
+GET  /api/assignments/snapshots?from=2024-01-01&to=2024-01-31
 GET  /api/reviews?from=2024-01-01&to=2024-01-31
 GET  /api/statistics/latest
 GET  /api/statistics?from=2024-01-01&to=2024-01-31
 POST /api/sync
 GET  /api/sync/status
-GET  /health (no authentication required)
+GET  /api/health (no authentication required)
 ```
 
 ### 5. Scheduler
@@ -283,6 +292,54 @@ type StatisticsSnapshot struct {
 }
 ```
 
+### Assignment Snapshot
+
+```go
+type AssignmentSnapshot struct {
+    Date        time.Time `json:"date"`
+    SRSStage    int       `json:"srs_stage"`
+    SubjectType string    `json:"subject_type"`
+    Count       int       `json:"count"`
+}
+
+type AssignmentSnapshotSummary struct {
+    Date string                           `json:"date"`
+    Data map[string]map[string]int        `json:"data"` // SRS stage name -> subject type -> count
+}
+
+// SRS Stage mapping
+const (
+    SRSStageInitiate    = 0
+    SRSStageApprentice1 = 1
+    SRSStageApprentice2 = 2
+    SRSStageApprentice3 = 3
+    SRSStageApprentice4 = 4
+    SRSStageGuru1       = 5
+    SRSStageGuru2       = 6
+    SRSStageMaster      = 7
+    SRSStageEnlightened = 8
+    SRSStageBurned      = 9
+)
+
+// GetSRSStageName returns the human-readable name for an SRS stage
+func GetSRSStageName(stage int) string {
+    switch {
+    case stage >= 1 && stage <= 4:
+        return "apprentice"
+    case stage >= 5 && stage <= 6:
+        return "guru"
+    case stage == 7:
+        return "master"
+    case stage == 8:
+        return "enlightened"
+    case stage == 9:
+        return "burned"
+    default:
+        return "unknown"
+    }
+}
+```
+
 
 ## Correctness Properties
 
@@ -371,6 +428,38 @@ type StatisticsSnapshot struct {
 ### Property 21: API authentication enforcement
 *For any* API request without a valid authorization token (when LOCAL_API_TOKEN is configured), the API Server should return a 401 Unauthorized response and reject the request.
 **Validates: Requirements 11.1, 11.2, 11.3**
+
+### Property 22: Snapshot creation after successful sync
+*For any* successful sync operation, a daily snapshot should be created with assignment counts grouped by SRS stage and subject type for the current date.
+**Validates: Requirements 12.1**
+
+### Property 23: Snapshot excludes unstarted assignments
+*For any* set of assignments including those with SRS stage 0, the calculated snapshot should exclude all assignments with SRS stage 0 from the counts.
+**Validates: Requirements 12.2**
+
+### Property 24: Snapshot data persistence round trip
+*For any* assignment snapshot, after persisting it to the Data Store and then retrieving it, the retrieved snapshot should contain the same date, SRS stage, subject type, and count.
+**Validates: Requirements 12.3**
+
+### Property 25: Snapshot upsert idempotence
+*For any* date, creating multiple snapshots on the same date should result in exactly one set of snapshot records for that date with the most recent counts.
+**Validates: Requirements 12.4**
+
+### Property 26: Snapshot API response format
+*For any* set of snapshots retrieved from the API, the response should group data by date with SRS stage names (not numbers) and include all three subject types.
+**Validates: Requirements 12.5**
+
+### Property 27: Snapshot totals accuracy
+*For any* snapshot date and SRS stage, the total count should equal the sum of counts across all subject types (radical, kanji, vocabulary) for that stage.
+**Validates: Requirements 12.6**
+
+### Property 28: Snapshot date range filtering
+*For any* date range filter, all returned snapshots should have dates within the specified range, and no snapshots outside the range should be included.
+**Validates: Requirements 12.7**
+
+### Property 29: Snapshot date ordering
+*For any* set of snapshots, the API response should order snapshots by date in ascending chronological order.
+**Validates: Requirements 12.8**
 
 ## Error Handling
 
@@ -502,6 +591,13 @@ Custom generators will be created for:
 - data_type (PRIMARY KEY)
 - last_sync_time (TEXT)
 
+**assignment_snapshots table**:
+- date (TEXT, part of composite PRIMARY KEY)
+- srs_stage (INTEGER, part of composite PRIMARY KEY)
+- subject_type (TEXT, part of composite PRIMARY KEY)
+- count (INTEGER)
+- PRIMARY KEY (date, srs_stage, subject_type)
+
 ### Rate Limiting Strategy
 
 Implement a token bucket algorithm:
@@ -528,6 +624,55 @@ WaniKani API uses cursor-based pagination:
 4. WaniKani returns only records modified since that time
 5. Upsert returned records
 6. Update sync_metadata with current timestamp
+
+### Assignment Snapshot Strategy
+
+Assignment snapshots provide a daily view of the distribution of assignments across SRS stages and subject types. This enables tracking progress over time.
+
+**Snapshot Creation Process:**
+1. After a successful sync operation, calculate the current state of all assignments
+2. Group assignments by SRS stage (1-9, excluding 0) and subject type (radical, kanji, vocabulary)
+3. Count assignments in each group
+4. Store counts in assignment_snapshots table with today's date
+5. Use UPSERT logic so multiple syncs on the same day update the existing snapshot
+
+**Snapshot Data Structure:**
+Each snapshot record contains:
+- `date`: The date of the snapshot (YYYY-MM-DD format)
+- `srs_stage`: Numeric SRS stage (1-9)
+- `subject_type`: Type of subject (radical, kanji, vocabulary)
+- `count`: Number of assignments in this category
+
+**API Response Format:**
+The API transforms the flat snapshot records into a nested structure:
+```json
+{
+  "2024-01-15": {
+    "apprentice": {
+      "radical": 6,
+      "kanji": 15,
+      "vocabulary": 20,
+      "total": 41
+    },
+    "guru": {
+      "radical": 10,
+      "kanji": 25,
+      "vocabulary": 30,
+      "total": 65
+    }
+  }
+}
+```
+
+**SRS Stage Mapping:**
+- Stages 1-4 → "apprentice"
+- Stages 5-6 → "guru"
+- Stage 7 → "master"
+- Stage 8 → "enlightened"
+- Stage 9 → "burned"
+
+**Date Range Filtering:**
+The API supports filtering snapshots by date range using `from` and `to` query parameters in YYYY-MM-DD format.
 
 ### Configuration
 

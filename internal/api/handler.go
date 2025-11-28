@@ -394,3 +394,62 @@ func (h *Handler) HandleGetSyncStatus(w http.ResponseWriter, r *http.Request) {
 		Syncing: syncing,
 	})
 }
+
+// HandleGetAssignmentSnapshots handles GET /api/assignments/snapshots
+func (h *Handler) HandleGetAssignmentSnapshots(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var dateRange *domain.DateRange
+
+	h.logger.WithField("endpoint", "GET /api/assignments/snapshots").Debug("Handling request")
+
+	// Parse date range filters
+	fromParam := r.URL.Query().Get("from")
+	toParam := r.URL.Query().Get("to")
+
+	if fromParam != "" || toParam != "" {
+		dateRange = &domain.DateRange{}
+
+		if fromParam != "" {
+			from, err := time.Parse("2006-01-02", fromParam)
+			if err != nil {
+				h.writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid query parameters", map[string]string{
+					"from": "Must be in YYYY-MM-DD format",
+				})
+				return
+			}
+			dateRange.From = from
+		}
+
+		if toParam != "" {
+			to, err := time.Parse("2006-01-02", toParam)
+			if err != nil {
+				h.writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid query parameters", map[string]string{
+					"to": "Must be in YYYY-MM-DD format",
+				})
+				return
+			}
+			dateRange.To = to
+		}
+
+		// Validate date range
+		if fromParam != "" && toParam != "" && dateRange.From.After(dateRange.To) {
+			h.writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid query parameters", map[string]string{
+				"from": "Must be before or equal to 'to' date",
+			})
+			return
+		}
+	}
+
+	snapshots, err := h.service.GetAssignmentSnapshots(ctx, dateRange)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	h.logger.WithFields(logrus.Fields{
+		"endpoint":   "GET /api/assignments/snapshots",
+		"date_range": dateRange,
+	}).Info("Request completed successfully")
+
+	writeJSON(w, snapshots)
+}

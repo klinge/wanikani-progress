@@ -92,6 +92,14 @@ func (s *Store) migrate() error {
 		last_sync_time TEXT NOT NULL
 	);
 
+	CREATE TABLE IF NOT EXISTS assignment_snapshots (
+		date TEXT NOT NULL,
+		srs_stage INTEGER NOT NULL,
+		subject_type TEXT NOT NULL,
+		count INTEGER NOT NULL,
+		PRIMARY KEY (date, srs_stage, subject_type)
+	);
+
 	CREATE INDEX IF NOT EXISTS idx_subjects_data_updated_at ON subjects(data_updated_at);
 	CREATE INDEX IF NOT EXISTS idx_assignments_subject_id ON assignments(subject_id);
 	CREATE INDEX IF NOT EXISTS idx_assignments_data_updated_at ON assignments(data_updated_at);
@@ -99,6 +107,7 @@ func (s *Store) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_reviews_subject_id ON reviews(subject_id);
 	CREATE INDEX IF NOT EXISTS idx_reviews_data_updated_at ON reviews(data_updated_at);
 	CREATE INDEX IF NOT EXISTS idx_statistics_snapshots_timestamp ON statistics_snapshots(timestamp);
+	CREATE INDEX IF NOT EXISTS idx_assignment_snapshots_date ON assignment_snapshots(date);
 	`
 
 	_, err := s.db.Exec(schema)
@@ -548,6 +557,113 @@ func (s *Store) GetLatestStatistics(ctx context.Context) (*domain.StatisticsSnap
 	}
 
 	return &snapshot, nil
+}
+
+// UpsertAssignmentSnapshot inserts or updates an assignment snapshot
+func (s *Store) UpsertAssignmentSnapshot(ctx context.Context, snapshot domain.AssignmentSnapshot) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO assignment_snapshots (date, srs_stage, subject_type, count)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(date, srs_stage, subject_type) DO UPDATE SET
+			count = excluded.count
+	`, snapshot.Date.Format("2006-01-02"), snapshot.SRSStage, snapshot.SubjectType, snapshot.Count)
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert assignment snapshot: %w", err)
+	}
+
+	return nil
+}
+
+// GetAssignmentSnapshots retrieves assignment snapshots within the provided date range
+func (s *Store) GetAssignmentSnapshots(ctx context.Context, dateRange *domain.DateRange) ([]domain.AssignmentSnapshot, error) {
+	query := `SELECT date, srs_stage, subject_type, count FROM assignment_snapshots WHERE 1=1`
+	args := []interface{}{}
+
+	if dateRange != nil {
+		query += ` AND date >= ? AND date <= ?`
+		args = append(args, dateRange.From.Format("2006-01-02"), dateRange.To.Format("2006-01-02"))
+	}
+
+	query += ` ORDER BY date ASC, srs_stage ASC, subject_type ASC`
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query assignment snapshots: %w", err)
+	}
+	defer rows.Close()
+
+	var snapshots []domain.AssignmentSnapshot
+	for rows.Next() {
+		var snapshot domain.AssignmentSnapshot
+		var dateStr string
+
+		err := rows.Scan(&dateStr, &snapshot.SRSStage, &snapshot.SubjectType, &snapshot.Count)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan assignment snapshot: %w", err)
+		}
+
+		snapshot.Date, err = time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse date: %w", err)
+		}
+
+		snapshots = append(snapshots, snapshot)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating assignment snapshots: %w", err)
+	}
+
+	return snapshots, nil
+}
+
+// CalculateAssignmentSnapshot computes a snapshot from current assignments for a given date
+func (s *Store) CalculateAssignmentSnapshot(ctx context.Context, date time.Time) ([]domain.AssignmentSnapshot, error) {
+	// Query to count assignments by SRS stage and subject type
+	// Exclude SRS stage 0 (unstarted assignments) as per requirement 12.2
+	query := `
+		SELECT 
+			json_extract(data, '$.srs_stage') as srs_stage,
+			json_extract(data, '$.subject_type') as subject_type,
+			COUNT(*) as count
+		FROM assignments
+		WHERE json_extract(data, '$.srs_stage') > 0
+		GROUP BY srs_stage, subject_type
+		ORDER BY srs_stage, subject_type
+	`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query assignment counts: %w", err)
+	}
+	defer rows.Close()
+
+	var snapshots []domain.AssignmentSnapshot
+	for rows.Next() {
+		var snapshot domain.AssignmentSnapshot
+		var srsStage int
+		var subjectType string
+		var count int
+
+		err := rows.Scan(&srsStage, &subjectType, &count)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan assignment count: %w", err)
+		}
+
+		snapshot.Date = date
+		snapshot.SRSStage = srsStage
+		snapshot.SubjectType = subjectType
+		snapshot.Count = count
+
+		snapshots = append(snapshots, snapshot)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating assignment counts: %w", err)
+	}
+
+	return snapshots, nil
 }
 
 // GetLastSyncTime retrieves the last successful sync timestamp for a data type

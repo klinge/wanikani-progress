@@ -35,6 +35,15 @@ type DataStore interface {
 	// GetLatestStatistics retrieves the most recent statistics snapshot
 	GetLatestStatistics(ctx context.Context) (*StatisticsSnapshot, error)
 
+	// UpsertAssignmentSnapshot inserts or updates an assignment snapshot
+	UpsertAssignmentSnapshot(ctx context.Context, snapshot AssignmentSnapshot) error
+
+	// GetAssignmentSnapshots retrieves assignment snapshots within the provided date range
+	GetAssignmentSnapshots(ctx context.Context, dateRange *DateRange) ([]AssignmentSnapshot, error)
+
+	// CalculateAssignmentSnapshot computes a snapshot from current assignments for a given date
+	CalculateAssignmentSnapshot(ctx context.Context, date time.Time) ([]AssignmentSnapshot, error)
+
 	// GetLastSyncTime retrieves the last successful sync timestamp for a data type
 	GetLastSyncTime(ctx context.Context, dataType DataType) (*time.Time, error)
 

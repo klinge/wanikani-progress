@@ -136,6 +136,18 @@ func (m *errorMockStore) BeginTx(ctx context.Context) (*sql.Tx, error) {
 	return nil, m.getError()
 }
 
+func (m *errorMockStore) UpsertAssignmentSnapshot(ctx context.Context, snapshot domain.AssignmentSnapshot) error {
+	return m.getError()
+}
+
+func (m *errorMockStore) GetAssignmentSnapshots(ctx context.Context, dateRange *domain.DateRange) ([]domain.AssignmentSnapshot, error) {
+	return nil, m.getError()
+}
+
+func (m *errorMockStore) CalculateAssignmentSnapshot(ctx context.Context, date time.Time) ([]domain.AssignmentSnapshot, error) {
+	return nil, m.getError()
+}
+
 func (m *errorMockStore) getError() error {
 	if m.authError {
 		return errors.New("Invalid API token")

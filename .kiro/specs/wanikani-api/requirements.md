@@ -17,6 +17,9 @@ This document specifies the requirements for a WaniKani Data API system. The sys
 - **Local API Token**: The authentication credential for accessing the local API Server
 - **Summary Statistics**: Aggregate data about user progress including lesson counts, review counts, and SRS stage distributions
 - **Sync Operation**: The process of fetching updated data from WaniKani and storing it locally
+- **SRS Stage**: A numeric value (0-9) representing the spaced repetition stage of an assignment
+- **SRS Stage Name**: The human-readable name for an SRS stage (initiate, apprentice, guru, master, enlightened, burned)
+- **Assignment Snapshot**: A daily record of assignment counts grouped by SRS stage and subject type, capturing the state of all assignments at a specific point in time
 
 ## Requirements
 
@@ -147,3 +150,20 @@ This document specifies the requirements for a WaniKani Data API system. The sys
 3. WHEN the API Server receives a request with a valid Local API Token in the authorization header, THE API Server SHALL process the request normally
 4. WHEN the Local API Token is configured, THE API Server SHALL validate all incoming requests except health check endpoints
 5. WHEN the API Server starts without a configured Local API Token, THE API Server SHALL log a warning and operate without authentication
+
+### Requirement 12
+
+**User Story:** As a frontend developer, I want to retrieve daily snapshots of assignment distribution by SRS stage and subject type, so that I can visualize learning progress over time and track how my item distribution changes day by day.
+
+#### Acceptance Criteria
+
+1. WHEN a sync operation completes successfully, THE Data Store SHALL calculate and persist a daily snapshot of assignment counts grouped by SRS stage and subject type
+2. WHEN the Data Store calculates a daily snapshot, THE Data Store SHALL count all assignments at each SRS stage (1-9) excluding unstarted assignments (SRS stage 0)
+3. WHEN the Data Store persists a daily snapshot, THE Data Store SHALL store the snapshot date, SRS stage, subject type, and count for each combination
+4. WHEN multiple syncs occur on the same day, THE Data Store SHALL update the existing snapshot for that day rather than creating duplicate entries
+5. WHEN the API Server receives a request for assignment snapshots, THE API Server SHALL return snapshots grouped by date with SRS stage names (apprentice, guru, master, enlightened, burned) and subject types (radical, kanji, vocabulary)
+6. WHEN the API Server returns snapshot data, THE API Server SHALL include a total count for each SRS stage across all subject types
+7. WHEN the API Server receives a date range filter for snapshots, THE API Server SHALL return only snapshots within the specified date range
+8. WHEN the API Server returns snapshot data, THE API Server SHALL order results by date in ascending order
+7. WHEN the API Server calculates summary data for a date, THE API Server SHALL use the assignment's started_at timestamp to determine which date the assignment belongs to
+7. WHEN an assignment has not been started, THE API Server SHALL exclude it from the summary data

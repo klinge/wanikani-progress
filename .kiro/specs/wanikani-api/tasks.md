@@ -189,3 +189,74 @@
 
 - [x] 15. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 16. Implement assignment snapshots data model and database schema
+  - Add AssignmentSnapshot and AssignmentSnapshotSummary types to internal/domain/types.go
+  - Add GetSRSStageName() helper function for SRS stage name mapping
+  - Create database migration for assignment_snapshots table with composite primary key
+  - _Requirements: 12.1, 12.2, 12.3_
+
+- [x] 17. Implement assignment snapshot storage methods
+  - Add UpsertAssignmentSnapshot method to DataStore interface
+  - Add GetAssignmentSnapshots method with date range filtering
+  - Add CalculateAssignmentSnapshot method to compute snapshot from current assignments
+  - Implement methods in SQLite store with proper transaction handling
+  - _Requirements: 12.1, 12.2, 12.3, 12.4_
+
+- [ ]* 17.1 Write property test for snapshot data persistence
+  - **Property 24: Snapshot data persistence round trip**
+  - **Validates: Requirements 12.3**
+
+- [ ]* 17.2 Write property test for snapshot upsert idempotence
+  - **Property 25: Snapshot upsert idempotence**
+  - **Validates: Requirements 12.4**
+
+- [ ]* 17.3 Write property test for snapshot excludes unstarted assignments
+  - **Property 23: Snapshot excludes unstarted assignments**
+  - **Validates: Requirements 12.2**
+
+- [x] 18. Integrate snapshot creation into sync service
+  - Add CreateAssignmentSnapshot method to SyncService interface
+  - Implement snapshot creation logic that calls CalculateAssignmentSnapshot
+  - Call CreateAssignmentSnapshot after successful SyncAll operation
+  - Ensure snapshot creation doesn't fail the entire sync if it encounters errors
+  - _Requirements: 12.1, 12.2_
+
+- [ ]* 18.1 Write property test for snapshot creation after sync
+  - **Property 22: Snapshot creation after successful sync**
+  - **Validates: Requirements 12.1**
+
+- [x] 19. Implement assignment snapshots API endpoint
+  - Add GET /api/assignments/snapshots endpoint to routes
+  - Implement handler to retrieve snapshots with date range filtering
+  - Transform flat snapshot records into nested structure grouped by date and SRS stage name
+  - Calculate and include totals for each SRS stage
+  - Order results by date in ascending order
+  - Add input validation for date range parameters
+  - _Requirements: 12.5, 12.6, 12.7, 12.8_
+
+- [ ]* 19.1 Write property test for snapshot API response format
+  - **Property 26: Snapshot API response format**
+  - **Validates: Requirements 12.5**
+
+- [ ]* 19.2 Write property test for snapshot totals accuracy
+  - **Property 27: Snapshot totals accuracy**
+  - **Validates: Requirements 12.6**
+
+- [ ]* 19.3 Write property test for snapshot date range filtering
+  - **Property 28: Snapshot date range filtering**
+  - **Validates: Requirements 12.7**
+
+- [ ]* 19.4 Write property test for snapshot date ordering
+  - **Property 29: Snapshot date ordering**
+  - **Validates: Requirements 12.8**
+
+- [ ] 20. Update documentation for assignment snapshots
+  - Add assignment snapshots endpoint to README
+  - Document query parameters and response format
+  - Provide example API calls and responses
+  - Explain SRS stage name mapping
+  - _Requirements: 12.5, 12.6, 12.7, 12.8_
+
+- [ ] 21. Final checkpoint - Ensure all tests pass including new snapshot tests
+  - Ensure all tests pass, ask the user if questions arise.

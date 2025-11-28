@@ -137,3 +137,49 @@ type DateRange struct {
 	From time.Time
 	To   time.Time
 }
+
+// SRS Stage constants
+const (
+	SRSStageInitiate    = 0
+	SRSStageApprentice1 = 1
+	SRSStageApprentice2 = 2
+	SRSStageApprentice3 = 3
+	SRSStageApprentice4 = 4
+	SRSStageGuru1       = 5
+	SRSStageGuru2       = 6
+	SRSStageMaster      = 7
+	SRSStageEnlightened = 8
+	SRSStageBurned      = 9
+)
+
+// AssignmentSnapshot represents a daily snapshot of assignment counts
+type AssignmentSnapshot struct {
+	Date        time.Time `json:"date"`
+	SRSStage    int       `json:"srs_stage"`
+	SubjectType string    `json:"subject_type"`
+	Count       int       `json:"count"`
+}
+
+// AssignmentSnapshotSummary represents a nested structure of snapshots grouped by date
+type AssignmentSnapshotSummary struct {
+	Date string                     `json:"date"`
+	Data map[string]map[string]int  `json:"data"` // SRS stage name -> subject type -> count
+}
+
+// GetSRSStageName returns the human-readable name for an SRS stage
+func GetSRSStageName(stage int) string {
+	switch {
+	case stage >= 1 && stage <= 4:
+		return "apprentice"
+	case stage >= 5 && stage <= 6:
+		return "guru"
+	case stage == 7:
+		return "master"
+	case stage == 8:
+		return "enlightened"
+	case stage == 9:
+		return "burned"
+	default:
+		return "unknown"
+	}
+}

@@ -138,3 +138,45 @@ func (s *Service) TriggerSync(ctx context.Context) ([]domain.SyncResult, error) 
 func (s *Service) GetSyncStatus() bool {
 	return s.syncService.IsSyncing()
 }
+
+// GetAssignmentSnapshots retrieves assignment snapshots and transforms them into nested structure
+func (s *Service) GetAssignmentSnapshots(ctx context.Context, dateRange *domain.DateRange) (map[string]map[string]map[string]int, error) {
+	// Fetch snapshots from store
+	snapshots, err := s.store.GetAssignmentSnapshots(ctx, dateRange)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve assignment snapshots: %w", err)
+	}
+
+	// Transform flat snapshot records into nested structure grouped by date and SRS stage name
+	// Structure: date -> SRS stage name -> subject type -> count
+	result := make(map[string]map[string]map[string]int)
+
+	for _, snapshot := range snapshots {
+		dateStr := snapshot.Date.Format("2006-01-02")
+		stageName := domain.GetSRSStageName(snapshot.SRSStage)
+
+		// Initialize nested maps if they don't exist
+		if result[dateStr] == nil {
+			result[dateStr] = make(map[string]map[string]int)
+		}
+		if result[dateStr][stageName] == nil {
+			result[dateStr][stageName] = make(map[string]int)
+		}
+
+		// Add count for this subject type
+		result[dateStr][stageName][snapshot.SubjectType] = snapshot.Count
+	}
+
+	// Calculate and include totals for each SRS stage
+	for date := range result {
+		for stageName := range result[date] {
+			total := 0
+			for _, count := range result[date][stageName] {
+				total += count
+			}
+			result[date][stageName]["total"] = total
+		}
+	}
+
+	return result, nil
+}

@@ -71,10 +71,12 @@ func (m *mockClient) GetRateLimitStatus() domain.RateLimitInfo {
 
 // Mock store for testing
 type mockStore struct {
-	lastSyncTimes map[domain.DataType]*time.Time
-	upsertError   error
-	insertError   error
-	syncTimeError error
+	lastSyncTimes       map[domain.DataType]*time.Time
+	upsertError         error
+	insertError         error
+	syncTimeError       error
+	snapshotUpsertError error
+	snapshotCalcError   error
 }
 
 func newMockStore() *mockStore {
@@ -136,6 +138,29 @@ func (m *mockStore) SetLastSyncTime(ctx context.Context, dataType domain.DataTyp
 
 func (m *mockStore) BeginTx(ctx context.Context) (*sql.Tx, error) {
 	return nil, nil
+}
+
+func (m *mockStore) UpsertAssignmentSnapshot(ctx context.Context, snapshot domain.AssignmentSnapshot) error {
+	return m.snapshotUpsertError
+}
+
+func (m *mockStore) GetAssignmentSnapshots(ctx context.Context, dateRange *domain.DateRange) ([]domain.AssignmentSnapshot, error) {
+	return nil, nil
+}
+
+func (m *mockStore) CalculateAssignmentSnapshot(ctx context.Context, date time.Time) ([]domain.AssignmentSnapshot, error) {
+	if m.snapshotCalcError != nil {
+		return nil, m.snapshotCalcError
+	}
+	// Return a simple snapshot for testing
+	return []domain.AssignmentSnapshot{
+		{
+			Date:        date,
+			SRSStage:    1,
+			SubjectType: "kanji",
+			Count:       5,
+		},
+	}, nil
 }
 
 // mockClientWithTimestampCapture captures the updatedAfter parameter
@@ -427,6 +452,82 @@ func TestSyncSubjects_EmptyResults(t *testing.T) {
 	}
 	if result.RecordsUpdated != 0 {
 		t.Errorf("expected 0 records updated, got %d", result.RecordsUpdated)
+	}
+}
+
+func TestCreateAssignmentSnapshot_Success(t *testing.T) {
+	client := &mockClient{}
+	store := newMockStore()
+	service := NewService(client, store, testLogger())
+
+	err := service.CreateAssignmentSnapshot(context.Background())
+
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+}
+
+func TestCreateAssignmentSnapshot_CalculateError(t *testing.T) {
+	client := &mockClient{}
+	store := newMockStore()
+	store.snapshotCalcError = errors.New("calculation error")
+	service := NewService(client, store, testLogger())
+
+	err := service.CreateAssignmentSnapshot(context.Background())
+
+	if err == nil {
+		t.Error("expected error, got nil")
+	}
+}
+
+func TestCreateAssignmentSnapshot_UpsertError(t *testing.T) {
+	client := &mockClient{}
+	store := newMockStore()
+	store.snapshotUpsertError = errors.New("upsert error")
+	service := NewService(client, store, testLogger())
+
+	err := service.CreateAssignmentSnapshot(context.Background())
+
+	if err == nil {
+		t.Error("expected error, got nil")
+	}
+}
+
+func TestSyncAll_SnapshotErrorDoesNotFailSync(t *testing.T) {
+	client := &mockClient{
+		subjects:    []domain.Subject{{ID: 1}},
+		assignments: []domain.Assignment{{ID: 1}},
+		reviews:     []domain.Review{{ID: 1}},
+		statistics:  &domain.Statistics{Object: "report"},
+	}
+	store := newMockStore()
+	service := NewService(client, store, testLogger())
+
+	// First sync should succeed
+	results, err := service.SyncAll(context.Background())
+
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+	if len(results) != 4 {
+		t.Errorf("expected 4 results, got %d", len(results))
+	}
+
+	// Now test with snapshot error - sync should still succeed
+	store.snapshotCalcError = errors.New("snapshot calculation error")
+	results2, err2 := service.SyncAll(context.Background())
+
+	if err2 != nil {
+		t.Errorf("expected no error even with snapshot failure, got: %v", err2)
+	}
+	if len(results2) != 4 {
+		t.Errorf("expected 4 results, got %d", len(results2))
+	}
+	// All sync results should still be successful
+	for _, result := range results2 {
+		if !result.Success {
+			t.Errorf("expected all syncs to succeed, got error for %s: %s", result.DataType, result.Error)
+		}
 	}
 }
 

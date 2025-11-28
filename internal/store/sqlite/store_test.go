@@ -733,3 +733,275 @@ func TestStore_ReferentialIntegrity(t *testing.T) {
 		}
 	})
 }
+
+func TestStore_AssignmentSnapshots(t *testing.T) {
+	dbPath := "test_assignment_snapshots.db"
+	defer os.Remove(dbPath)
+
+	store, err := New(dbPath)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	t.Run("upsert and get assignment snapshots", func(t *testing.T) {
+		// Create test snapshots
+		date1 := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+		snapshots := []domain.AssignmentSnapshot{
+			{
+				Date:        date1,
+				SRSStage:    1,
+				SubjectType: "kanji",
+				Count:       10,
+			},
+			{
+				Date:        date1,
+				SRSStage:    1,
+				SubjectType: "vocabulary",
+				Count:       15,
+			},
+			{
+				Date:        date1,
+				SRSStage:    5,
+				SubjectType: "kanji",
+				Count:       20,
+			},
+		}
+
+		// Upsert snapshots
+		for _, snapshot := range snapshots {
+			err := store.UpsertAssignmentSnapshot(ctx, snapshot)
+			if err != nil {
+				t.Fatalf("failed to upsert snapshot: %v", err)
+			}
+		}
+
+		// Get all snapshots
+		retrieved, err := store.GetAssignmentSnapshots(ctx, nil)
+		if err != nil {
+			t.Fatalf("failed to get snapshots: %v", err)
+		}
+
+		if len(retrieved) != 3 {
+			t.Errorf("expected 3 snapshots, got %d", len(retrieved))
+		}
+
+		// Verify data
+		if retrieved[0].Count != 10 {
+			t.Errorf("expected count 10, got %d", retrieved[0].Count)
+		}
+	})
+
+	t.Run("upsert idempotence", func(t *testing.T) {
+		// Upsert the same snapshot twice with different counts
+		date := time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC)
+		snapshot := domain.AssignmentSnapshot{
+			Date:        date,
+			SRSStage:    2,
+			SubjectType: "radical",
+			Count:       5,
+		}
+
+		err := store.UpsertAssignmentSnapshot(ctx, snapshot)
+		if err != nil {
+			t.Fatalf("failed to upsert snapshot: %v", err)
+		}
+
+		// Update with new count
+		snapshot.Count = 8
+		err = store.UpsertAssignmentSnapshot(ctx, snapshot)
+		if err != nil {
+			t.Fatalf("failed to update snapshot: %v", err)
+		}
+
+		// Verify only one record exists with updated count
+		dateRange := &domain.DateRange{
+			From: date,
+			To:   date,
+		}
+		retrieved, err := store.GetAssignmentSnapshots(ctx, dateRange)
+		if err != nil {
+			t.Fatalf("failed to get snapshots: %v", err)
+		}
+
+		count := 0
+		for _, s := range retrieved {
+			if s.SRSStage == 2 && s.SubjectType == "radical" {
+				count++
+				if s.Count != 8 {
+					t.Errorf("expected count 8, got %d", s.Count)
+				}
+			}
+		}
+
+		if count != 1 {
+			t.Errorf("expected 1 snapshot with SRS stage 2 and type radical, got %d", count)
+		}
+	})
+
+	t.Run("date range filtering", func(t *testing.T) {
+		// Create snapshots for multiple dates
+		date1 := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+		date2 := time.Date(2024, 2, 2, 0, 0, 0, 0, time.UTC)
+		date3 := time.Date(2024, 2, 3, 0, 0, 0, 0, time.UTC)
+
+		snapshots := []domain.AssignmentSnapshot{
+			{Date: date1, SRSStage: 1, SubjectType: "kanji", Count: 10},
+			{Date: date2, SRSStage: 1, SubjectType: "kanji", Count: 12},
+			{Date: date3, SRSStage: 1, SubjectType: "kanji", Count: 15},
+		}
+
+		for _, snapshot := range snapshots {
+			err := store.UpsertAssignmentSnapshot(ctx, snapshot)
+			if err != nil {
+				t.Fatalf("failed to upsert snapshot: %v", err)
+			}
+		}
+
+		// Query with date range
+		dateRange := &domain.DateRange{
+			From: date1,
+			To:   date2,
+		}
+
+		filtered, err := store.GetAssignmentSnapshots(ctx, dateRange)
+		if err != nil {
+			t.Fatalf("failed to get filtered snapshots: %v", err)
+		}
+
+		// Count snapshots within the date range
+		count := 0
+		for _, s := range filtered {
+			if !s.Date.Before(date1) && !s.Date.After(date2) {
+				count++
+			}
+		}
+
+		if count < 2 {
+			t.Errorf("expected at least 2 snapshots in date range, got %d", count)
+		}
+	})
+
+	t.Run("calculate assignment snapshot", func(t *testing.T) {
+		// First create subjects
+		subjects := []domain.Subject{
+			{
+				ID:            1,
+				Object:        "kanji",
+				URL:           "https://api.wanikani.com/v2/subjects/1",
+				DataUpdatedAt: time.Now(),
+				Data:          domain.SubjectData{Level: 5, Characters: "一"},
+			},
+			{
+				ID:            2,
+				Object:        "vocabulary",
+				URL:           "https://api.wanikani.com/v2/subjects/2",
+				DataUpdatedAt: time.Now(),
+				Data:          domain.SubjectData{Level: 5, Characters: "一つ"},
+			},
+			{
+				ID:            3,
+				Object:        "radical",
+				URL:           "https://api.wanikani.com/v2/subjects/3",
+				DataUpdatedAt: time.Now(),
+				Data:          domain.SubjectData{Level: 1, Characters: "丨"},
+			},
+		}
+		err := store.UpsertSubjects(ctx, subjects)
+		if err != nil {
+			t.Fatalf("failed to upsert subjects: %v", err)
+		}
+
+		// Create assignments with various SRS stages
+		now := time.Now()
+		assignments := []domain.Assignment{
+			{
+				ID:            100,
+				Object:        "assignment",
+				URL:           "https://api.wanikani.com/v2/assignments/100",
+				DataUpdatedAt: now,
+				Data: domain.AssignmentData{
+					SubjectID:   1,
+					SubjectType: "kanji",
+					SRSStage:    1, // Apprentice
+					StartedAt:   &now,
+				},
+			},
+			{
+				ID:            101,
+				Object:        "assignment",
+				URL:           "https://api.wanikani.com/v2/assignments/101",
+				DataUpdatedAt: now,
+				Data: domain.AssignmentData{
+					SubjectID:   2,
+					SubjectType: "vocabulary",
+					SRSStage:    5, // Guru
+					StartedAt:   &now,
+				},
+			},
+			{
+				ID:            102,
+				Object:        "assignment",
+				URL:           "https://api.wanikani.com/v2/assignments/102",
+				DataUpdatedAt: now,
+				Data: domain.AssignmentData{
+					SubjectID:   3,
+					SubjectType: "radical",
+					SRSStage:    0, // Unstarted - should be excluded
+					StartedAt:   nil,
+				},
+			},
+		}
+
+		err = store.UpsertAssignments(ctx, assignments)
+		if err != nil {
+			t.Fatalf("failed to upsert assignments: %v", err)
+		}
+
+		// Calculate snapshot
+		date := time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)
+		calculated, err := store.CalculateAssignmentSnapshot(ctx, date)
+		if err != nil {
+			t.Fatalf("failed to calculate snapshot: %v", err)
+		}
+
+		// Verify results
+		if len(calculated) == 0 {
+			t.Fatal("expected calculated snapshots, got none")
+		}
+
+		// Verify SRS stage 0 is excluded
+		for _, snapshot := range calculated {
+			if snapshot.SRSStage == 0 {
+				t.Error("SRS stage 0 should be excluded from snapshot")
+			}
+		}
+
+		// Verify we have snapshots for SRS stages 1 and 5
+		foundStage1 := false
+		foundStage5 := false
+		for _, snapshot := range calculated {
+			if snapshot.SRSStage == 1 && snapshot.SubjectType == "kanji" {
+				foundStage1 = true
+				if snapshot.Count != 1 {
+					t.Errorf("expected count 1 for stage 1 kanji, got %d", snapshot.Count)
+				}
+			}
+			if snapshot.SRSStage == 5 && snapshot.SubjectType == "vocabulary" {
+				foundStage5 = true
+				if snapshot.Count != 1 {
+					t.Errorf("expected count 1 for stage 5 vocabulary, got %d", snapshot.Count)
+				}
+			}
+		}
+
+		if !foundStage1 {
+			t.Error("expected snapshot for SRS stage 1 kanji")
+		}
+		if !foundStage5 {
+			t.Error("expected snapshot for SRS stage 5 vocabulary")
+		}
+	})
+}
