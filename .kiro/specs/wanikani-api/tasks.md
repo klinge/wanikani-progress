@@ -32,7 +32,7 @@
   - Implement automatic pagination handling
   - _Requirements: 1.1, 1.2, 1.4, 2.1, 2.2, 3.1, 4.1, 8.1_
 
-- [ ]* 3.1 Write property test for token persistence and usage
+- [x] 3.1 Write property test for token persistence and usage
   - **Property 1: Token persistence and usage**
   - **Validates: Requirements 1.1, 1.2**
 
@@ -44,7 +44,7 @@
   - **Property 3: Pagination completeness**
   - **Validates: Requirements 2.2**
 
-- [ ] 4. Implement rate limiting and retry logic
+- [x] 4. Implement rate limiting and retry logic
   - Add rate limit tracking from API response headers
   - Implement request throttling to respect rate limits
   - Add exponential backoff retry logic for transient errors
@@ -59,7 +59,7 @@
   - **Property 14: Rate limit status accuracy**
   - **Validates: Requirements 7.4**
 
-- [ ] 5. Implement sync service with incremental updates
+- [x] 5. Implement sync service with incremental updates
   - Create SyncService that orchestrates data synchronization
   - Implement sync methods for each data type (subjects, assignments, reviews, statistics)
   - Add logic to use last sync timestamp for incremental updates
@@ -67,15 +67,15 @@
   - Implement sync locking to prevent concurrent syncs
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 9.2, 9.5_
 
-- [ ]* 5.1 Write property test for incremental sync timestamps
+- [x] 5.1 Write property test for incremental sync timestamps
   - **Property 9: Incremental sync uses timestamps**
   - **Validates: Requirements 6.1, 3.4**
 
-- [ ]* 5.2 Write property test for successful sync updates timestamp
+- [x] 5.2 Write property test for successful sync updates timestamp
   - **Property 10: Successful sync updates timestamp**
   - **Validates: Requirements 6.2**
 
-- [ ]* 5.3 Write property test for failed sync preserves timestamp
+- [x] 5.3 Write property test for failed sync preserves timestamp
   - **Property 11: Failed sync preserves timestamp**
   - **Validates: Requirements 6.3**
 
@@ -87,7 +87,7 @@
   - **Property 18: Concurrent sync prevention**
   - **Validates: Requirements 9.5**
 
-- [ ] 6. Implement referential integrity checks
+- [x] 6. Implement referential integrity checks
   - Add foreign key constraints in database schema
   - Implement validation to ensure assignments reference valid subjects
   - Implement validation to ensure reviews reference valid assignments
@@ -97,7 +97,7 @@
   - **Property 6: Referential integrity preservation**
   - **Validates: Requirements 3.5, 4.4**
 
-- [ ] 7. Implement API server with REST endpoints
+- [x] 7. Implement API server with REST endpoints
   - Create HTTP server using gorilla/mux
   - Implement GET /api/subjects endpoint with filtering
   - Implement GET /api/assignments endpoint with joins to subjects
@@ -108,7 +108,7 @@
   - Implement GET /api/sync/status endpoint
   - _Requirements: 5.1, 5.2, 5.3, 5.5, 8.4, 8.5_
 
-- [ ]* 7.1 Write property test for query filter correctness
+- [x] 7.1 Write property test for query filter correctness
   - **Property 7: Query filter correctness**
   - **Validates: Requirements 5.1, 4.3, 8.4**
 
@@ -132,18 +132,19 @@
   - **Property 20: Validation error specificity**
   - **Validates: Requirements 10.4**
 
-- [ ] 9. Implement scheduler for daily syncs
+- [ ]* 9. Implement scheduler for daily syncs
   - Integrate robfig/cron library
   - Create Scheduler implementation that triggers SyncService
   - Add configuration for cron expression
   - Implement logging for sync results
   - _Requirements: 9.1, 9.3, 9.4_
+  - _Note: Can use system cron to call POST /api/sync endpoint instead_
 
 - [ ]* 9.1 Write property test for sync result logging
   - **Property 17: Sync result logging**
   - **Validates: Requirements 9.3**
 
-- [ ] 10. Implement statistics historical tracking
+- [x] 10. Implement statistics historical tracking
   - Ensure statistics snapshots are stored with timestamps
   - Implement query methods for date range filtering
   - Verify all historical snapshots are preserved
@@ -153,26 +154,38 @@
   - **Property 15: Statistics historical preservation**
   - **Validates: Requirements 8.3**
 
-- [ ] 11. Create main application entry point
+- [x] 11. Create main application entry point
   - Implement cmd/wanikani-api/main.go
   - Wire up all components (client, store, sync service, scheduler, API server)
   - Add graceful shutdown handling
   - Add logging configuration
   - _Requirements: All_
 
-- [ ] 12. Add logging throughout the application
+- [x] 12. Add logging throughout the application
   - Use structured logging (e.g., logrus or zap)
   - Log sync operations with results
   - Log API requests and errors
   - Log rate limit events
   - _Requirements: 9.3, 9.4_
 
-- [ ] 13. Create README with setup and usage instructions
-  - Document environment variables
+- [x] 13. Implement API authentication with token
+  - Add LOCAL_API_TOKEN to configuration
+  - Create authentication middleware to validate Bearer tokens
+  - Apply middleware to all API endpoints except /health
+  - Return 401 Unauthorized for missing or invalid tokens
+  - Log authentication failures
+  - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
+
+- [x] 13.1 Write property test for API authentication enforcement
+  - **Property 21: API authentication enforcement**
+  - **Validates: Requirements 11.1, 11.2, 11.3**
+
+- [x] 14. Create README with setup and usage instructions
+  - Document environment variables (including LOCAL_API_TOKEN)
   - Provide example configuration
-  - Document API endpoints
+  - Document API endpoints and authentication
   - Include build and run instructions
   - _Requirements: All_
 
-- [ ] 14. Final checkpoint - Ensure all tests pass
+- [x] 15. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.

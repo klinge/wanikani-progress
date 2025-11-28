@@ -36,8 +36,25 @@ clean:
 
 # Run tests
 test:
-	@echo "Running tests..."
+	@echo "Running unit tests..."
 	$(GOTEST) -v ./...
+
+# Run unit tests except property tests
+test-short:
+	@echo "Running unit tests wo property tests..."
+	$(GOTEST) -short -v ./...
+
+# Run integration tests (requires .env with WANIKANI_API_TOKEN)
+test-integration: 
+	@echo "Running integration tests..."
+	@echo "Note: Requires WANIKANI_API_TOKEN in .env or environment"
+	$(GOTEST) -tags=integration -v ./...
+
+# Run all tests (unit + integration)
+test-all:
+	@echo "Running all tests (unit + integration)..."
+	$(GOTEST) -v ./...
+	$(GOTEST) -tags=integration -v ./...
 
 # Run tests with coverage
 test-coverage:
@@ -73,7 +90,10 @@ help:
 	@echo "  build         - Build the application binary to bin/"
 	@echo "  build-all     - Build for multiple platforms (Linux, macOS, Windows)"
 	@echo "  clean         - Remove build artifacts and test databases"
-	@echo "  test          - Run all tests"
+	@echo "  test          - Run unit tests"
+	@echo "  test-short    - Run unit tests wo property tests"
+	@echo "  test-integration - Run integration tests (requires .env with API token)"
+	@echo "  test-all      - Run both unit and integration tests"
 	@echo "  test-coverage - Run tests with coverage report"
 	@echo "  run           - Build and run the application"
 	@echo "  install       - Install/update dependencies"

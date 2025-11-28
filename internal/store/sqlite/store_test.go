@@ -347,6 +347,250 @@ func TestStore_Statistics(t *testing.T) {
 	}
 }
 
+// TestStore_StatisticsHistoricalTracking tests comprehensive historical tracking of statistics
+func TestStore_StatisticsHistoricalTracking(t *testing.T) {
+	dbPath := "test_statistics_historical.db"
+	defer os.Remove(dbPath)
+
+	store, err := New(dbPath)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	t.Run("snapshots are stored with timestamps", func(t *testing.T) {
+		// Create multiple statistics snapshots with different timestamps
+		baseTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		
+		for i := 0; i < 5; i++ {
+			stats := domain.Statistics{
+				Object:        "report",
+				URL:           "https://api.wanikani.com/v2/summary",
+				DataUpdatedAt: baseTime.Add(time.Duration(i) * 24 * time.Hour),
+				Data: domain.StatisticsData{
+					Lessons: []domain.LessonStatistics{
+						{
+							AvailableAt: baseTime.Add(time.Duration(i) * 24 * time.Hour),
+							SubjectIDs:  []int{i + 1, i + 2, i + 3},
+						},
+					},
+					Reviews: []domain.ReviewStatistics{
+						{
+							AvailableAt: baseTime.Add(time.Duration(i) * 24 * time.Hour),
+							SubjectIDs:  []int{i * 10, i*10 + 1},
+						},
+					},
+				},
+			}
+			
+			timestamp := baseTime.Add(time.Duration(i) * 24 * time.Hour)
+			err := store.InsertStatistics(ctx, stats, timestamp)
+			if err != nil {
+				t.Fatalf("failed to insert statistics snapshot %d: %v", i, err)
+			}
+		}
+
+		// Verify all snapshots were stored
+		allSnapshots, err := store.GetStatistics(ctx, nil)
+		if err != nil {
+			t.Fatalf("failed to get all statistics: %v", err)
+		}
+
+		if len(allSnapshots) != 5 {
+			t.Errorf("expected 5 snapshots, got %d", len(allSnapshots))
+		}
+
+		// Verify each snapshot has the correct timestamp
+		for i, snapshot := range allSnapshots {
+			expectedTime := baseTime.Add(time.Duration(4-i) * 24 * time.Hour) // Reversed order (DESC)
+			if snapshot.Timestamp.Unix() != expectedTime.Unix() {
+				t.Errorf("snapshot %d: expected timestamp %v, got %v", i, expectedTime, snapshot.Timestamp)
+			}
+		}
+	})
+
+	t.Run("date range filtering works correctly", func(t *testing.T) {
+		// Query with date range
+		baseTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		dateRange := &domain.DateRange{
+			From: baseTime.Add(1 * 24 * time.Hour),
+			To:   baseTime.Add(3 * 24 * time.Hour),
+		}
+
+		filtered, err := store.GetStatistics(ctx, dateRange)
+		if err != nil {
+			t.Fatalf("failed to get filtered statistics: %v", err)
+		}
+
+		// Should return snapshots from day 1, 2, and 3 (3 snapshots)
+		if len(filtered) != 3 {
+			t.Errorf("expected 3 snapshots in date range, got %d", len(filtered))
+		}
+
+		// Verify all returned snapshots are within the date range
+		for _, snapshot := range filtered {
+			if snapshot.Timestamp.Before(dateRange.From) || snapshot.Timestamp.After(dateRange.To) {
+				t.Errorf("snapshot timestamp %v is outside date range [%v, %v]", 
+					snapshot.Timestamp, dateRange.From, dateRange.To)
+			}
+		}
+	})
+
+	t.Run("all historical snapshots are preserved", func(t *testing.T) {
+		// Insert more snapshots to verify preservation
+		baseTime := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+		
+		for i := 0; i < 10; i++ {
+			stats := domain.Statistics{
+				Object:        "report",
+				URL:           "https://api.wanikani.com/v2/summary",
+				DataUpdatedAt: baseTime.Add(time.Duration(i) * time.Hour),
+				Data: domain.StatisticsData{
+					Lessons: []domain.LessonStatistics{
+						{
+							AvailableAt: baseTime.Add(time.Duration(i) * time.Hour),
+							SubjectIDs:  []int{100 + i},
+						},
+					},
+				},
+			}
+			
+			timestamp := baseTime.Add(time.Duration(i) * time.Hour)
+			err := store.InsertStatistics(ctx, stats, timestamp)
+			if err != nil {
+				t.Fatalf("failed to insert statistics snapshot: %v", err)
+			}
+		}
+
+		// Get all snapshots (should include previous 5 + new 10 = 15 total)
+		allSnapshots, err := store.GetStatistics(ctx, nil)
+		if err != nil {
+			t.Fatalf("failed to get all statistics: %v", err)
+		}
+
+		if len(allSnapshots) != 15 {
+			t.Errorf("expected 15 total snapshots, got %d", len(allSnapshots))
+		}
+
+		// Verify snapshots are ordered by timestamp descending
+		for i := 1; i < len(allSnapshots); i++ {
+			if allSnapshots[i].Timestamp.After(allSnapshots[i-1].Timestamp) {
+				t.Errorf("snapshots not ordered correctly: snapshot %d (%v) is after snapshot %d (%v)",
+					i, allSnapshots[i].Timestamp, i-1, allSnapshots[i-1].Timestamp)
+			}
+		}
+	})
+
+	t.Run("latest statistics returns most recent snapshot", func(t *testing.T) {
+		latest, err := store.GetLatestStatistics(ctx)
+		if err != nil {
+			t.Fatalf("failed to get latest statistics: %v", err)
+		}
+
+		if latest == nil {
+			t.Fatal("expected latest statistics, got nil")
+		}
+
+		// Get all snapshots to verify latest is actually the most recent
+		allSnapshots, err := store.GetStatistics(ctx, nil)
+		if err != nil {
+			t.Fatalf("failed to get all statistics: %v", err)
+		}
+
+		// The latest should match the first in the list (DESC order)
+		if latest.ID != allSnapshots[0].ID {
+			t.Errorf("latest statistics ID %d doesn't match most recent snapshot ID %d", 
+				latest.ID, allSnapshots[0].ID)
+		}
+
+		if latest.Timestamp.Unix() != allSnapshots[0].Timestamp.Unix() {
+			t.Errorf("latest statistics timestamp %v doesn't match most recent snapshot timestamp %v",
+				latest.Timestamp, allSnapshots[0].Timestamp)
+		}
+	})
+
+	t.Run("empty date range returns all snapshots", func(t *testing.T) {
+		allSnapshots, err := store.GetStatistics(ctx, nil)
+		if err != nil {
+			t.Fatalf("failed to get statistics with nil date range: %v", err)
+		}
+
+		if len(allSnapshots) == 0 {
+			t.Error("expected snapshots with nil date range, got 0")
+		}
+	})
+
+	t.Run("statistics data integrity is preserved", func(t *testing.T) {
+		// Insert a snapshot with complex data
+		baseTime := time.Date(2024, 3, 1, 12, 0, 0, 0, time.UTC)
+		stats := domain.Statistics{
+			Object:        "report",
+			URL:           "https://api.wanikani.com/v2/summary",
+			DataUpdatedAt: baseTime,
+			Data: domain.StatisticsData{
+				Lessons: []domain.LessonStatistics{
+					{
+						AvailableAt: baseTime,
+						SubjectIDs:  []int{1, 2, 3, 4, 5},
+					},
+					{
+						AvailableAt: baseTime.Add(1 * time.Hour),
+						SubjectIDs:  []int{6, 7, 8},
+					},
+				},
+				Reviews: []domain.ReviewStatistics{
+					{
+						AvailableAt: baseTime,
+						SubjectIDs:  []int{10, 20, 30},
+					},
+				},
+			},
+		}
+
+		err := store.InsertStatistics(ctx, stats, baseTime)
+		if err != nil {
+			t.Fatalf("failed to insert complex statistics: %v", err)
+		}
+
+		// Retrieve and verify data integrity
+		retrieved, err := store.GetStatistics(ctx, &domain.DateRange{
+			From: baseTime.Add(-1 * time.Minute),
+			To:   baseTime.Add(1 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("failed to retrieve statistics: %v", err)
+		}
+
+		if len(retrieved) != 1 {
+			t.Fatalf("expected 1 snapshot, got %d", len(retrieved))
+		}
+
+		snapshot := retrieved[0]
+		
+		// Verify lessons data
+		if len(snapshot.Statistics.Data.Lessons) != 2 {
+			t.Errorf("expected 2 lesson statistics, got %d", len(snapshot.Statistics.Data.Lessons))
+		}
+
+		if len(snapshot.Statistics.Data.Lessons[0].SubjectIDs) != 5 {
+			t.Errorf("expected 5 subject IDs in first lesson, got %d", 
+				len(snapshot.Statistics.Data.Lessons[0].SubjectIDs))
+		}
+
+		// Verify reviews data
+		if len(snapshot.Statistics.Data.Reviews) != 1 {
+			t.Errorf("expected 1 review statistics, got %d", len(snapshot.Statistics.Data.Reviews))
+		}
+
+		if len(snapshot.Statistics.Data.Reviews[0].SubjectIDs) != 3 {
+			t.Errorf("expected 3 subject IDs in review, got %d",
+				len(snapshot.Statistics.Data.Reviews[0].SubjectIDs))
+		}
+	})
+}
+
 func TestStore_ReferentialIntegrity(t *testing.T) {
 	dbPath := "test_referential.db"
 	defer os.Remove(dbPath)
@@ -359,23 +603,133 @@ func TestStore_ReferentialIntegrity(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Try to insert an assignment without a subject (should fail)
-	assignments := []domain.Assignment{
-		{
-			ID:            100,
-			Object:        "assignment",
-			URL:           "https://api.wanikani.com/v2/assignments/100",
-			DataUpdatedAt: time.Now(),
-			Data: domain.AssignmentData{
-				SubjectID:   999, // Non-existent subject
-				SubjectType: "kanji",
-				SRSStage:    3,
+	t.Run("assignment with non-existent subject fails", func(t *testing.T) {
+		// Try to insert an assignment without a subject (should fail)
+		assignments := []domain.Assignment{
+			{
+				ID:            100,
+				Object:        "assignment",
+				URL:           "https://api.wanikani.com/v2/assignments/100",
+				DataUpdatedAt: time.Now(),
+				Data: domain.AssignmentData{
+					SubjectID:   999, // Non-existent subject
+					SubjectType: "kanji",
+					SRSStage:    3,
+				},
 			},
-		},
-	}
+		}
 
-	err = store.UpsertAssignments(ctx, assignments)
-	if err == nil {
-		t.Error("expected error when inserting assignment with non-existent subject, got nil")
-	}
+		err = store.UpsertAssignments(ctx, assignments)
+		if err == nil {
+			t.Error("expected error when inserting assignment with non-existent subject, got nil")
+		}
+	})
+
+	t.Run("assignment with valid subject succeeds", func(t *testing.T) {
+		// First create a subject
+		subjects := []domain.Subject{
+			{
+				ID:            1,
+				Object:        "kanji",
+				URL:           "https://api.wanikani.com/v2/subjects/1",
+				DataUpdatedAt: time.Now(),
+				Data: domain.SubjectData{
+					Level:      5,
+					Characters: "一",
+				},
+			},
+		}
+		err = store.UpsertSubjects(ctx, subjects)
+		if err != nil {
+			t.Fatalf("failed to upsert subjects: %v", err)
+		}
+
+		// Now insert assignment with valid subject
+		assignments := []domain.Assignment{
+			{
+				ID:            100,
+				Object:        "assignment",
+				URL:           "https://api.wanikani.com/v2/assignments/100",
+				DataUpdatedAt: time.Now(),
+				Data: domain.AssignmentData{
+					SubjectID:   1,
+					SubjectType: "kanji",
+					SRSStage:    3,
+				},
+			},
+		}
+
+		err = store.UpsertAssignments(ctx, assignments)
+		if err != nil {
+			t.Errorf("expected no error when inserting assignment with valid subject, got: %v", err)
+		}
+	})
+
+	t.Run("review with non-existent assignment fails", func(t *testing.T) {
+		// Try to insert a review without an assignment (should fail)
+		reviews := []domain.Review{
+			{
+				ID:            200,
+				Object:        "review",
+				URL:           "https://api.wanikani.com/v2/reviews/200",
+				DataUpdatedAt: time.Now(),
+				Data: domain.ReviewData{
+					AssignmentID: 999, // Non-existent assignment
+					SubjectID:    1,
+					CreatedAt:    time.Now(),
+				},
+			},
+		}
+
+		err = store.UpsertReviews(ctx, reviews)
+		if err == nil {
+			t.Error("expected error when inserting review with non-existent assignment, got nil")
+		}
+	})
+
+	t.Run("review with non-existent subject fails", func(t *testing.T) {
+		// Try to insert a review with non-existent subject (should fail)
+		reviews := []domain.Review{
+			{
+				ID:            201,
+				Object:        "review",
+				URL:           "https://api.wanikani.com/v2/reviews/201",
+				DataUpdatedAt: time.Now(),
+				Data: domain.ReviewData{
+					AssignmentID: 100, // Valid assignment
+					SubjectID:    999, // Non-existent subject
+					CreatedAt:    time.Now(),
+				},
+			},
+		}
+
+		err = store.UpsertReviews(ctx, reviews)
+		if err == nil {
+			t.Error("expected error when inserting review with non-existent subject, got nil")
+		}
+	})
+
+	t.Run("review with valid assignment and subject succeeds", func(t *testing.T) {
+		// Insert a review with valid references
+		reviews := []domain.Review{
+			{
+				ID:            202,
+				Object:        "review",
+				URL:           "https://api.wanikani.com/v2/reviews/202",
+				DataUpdatedAt: time.Now(),
+				Data: domain.ReviewData{
+					AssignmentID:            100,
+					SubjectID:               1,
+					CreatedAt:               time.Now(),
+					IncorrectMeaningAnswers: 0,
+					IncorrectReadingAnswers: 1,
+				},
+			},
+		}
+
+		err = store.UpsertReviews(ctx, reviews)
+		if err != nil {
+			t.Errorf("expected no error when inserting review with valid references, got: %v", err)
+		}
+	})
 }

@@ -35,9 +35,17 @@ func TestLoad_WithEnvironmentVariables(t *testing.T) {
 }
 
 func TestLoad_WithDefaults(t *testing.T) {
+	// Clear all environment variables that might be set from .env file
+	os.Unsetenv("DATABASE_PATH")
+	os.Unsetenv("SYNC_SCHEDULE")
+	os.Unsetenv("API_PORT")
+	os.Unsetenv("LOG_LEVEL")
+	
 	// Set only required variable
 	os.Setenv("WANIKANI_API_TOKEN", "test-token")
-	defer os.Unsetenv("WANIKANI_API_TOKEN")
+	defer func() {
+		os.Unsetenv("WANIKANI_API_TOKEN")
+	}()
 
 	config, err := Load()
 	if err != nil {

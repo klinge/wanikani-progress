@@ -11,6 +11,7 @@ import (
 // Config holds the application configuration
 type Config struct {
 	WaniKaniAPIToken string
+	LocalAPIToken    string
 	DatabasePath     string
 	SyncSchedule     string
 	APIPort          int
@@ -24,6 +25,7 @@ func Load() (*Config, error) {
 
 	config := &Config{
 		WaniKaniAPIToken: getEnv("WANIKANI_API_TOKEN", ""),
+		LocalAPIToken:    getEnv("LOCAL_API_TOKEN", ""),
 		DatabasePath:     getEnv("DATABASE_PATH", "./wanikani.db"),
 		SyncSchedule:     getEnv("SYNC_SCHEDULE", "0 2 * * *"),
 		APIPort:          getEnvAsInt("API_PORT", 8080),

@@ -155,10 +155,17 @@ type SyncResult struct {
 ### 4. API Server
 
 **Responsibilities:**
+- Authenticate incoming requests using API token
 - Expose REST endpoints for querying data
 - Validate request parameters
 - Format responses as JSON
 - Handle errors with appropriate status codes
+
+**Authentication:**
+- All API endpoints require authentication via Bearer token in Authorization header
+- Token is configured via environment variable `LOCAL_API_TOKEN`
+- If no token is configured, server operates without authentication (with warning)
+- Authentication failures return 401 Unauthorized
 
 **Endpoints:**
 
@@ -170,6 +177,7 @@ GET  /api/statistics/latest
 GET  /api/statistics?from=2024-01-01&to=2024-01-31
 POST /api/sync
 GET  /api/sync/status
+GET  /health (no authentication required)
 ```
 
 ### 5. Scheduler
@@ -360,6 +368,10 @@ type StatisticsSnapshot struct {
 *For any* invalid input data, the validation error message should identify which specific fields are invalid and why.
 **Validates: Requirements 10.4**
 
+### Property 21: API authentication enforcement
+*For any* API request without a valid authorization token (when LOCAL_API_TOKEN is configured), the API Server should return a 401 Unauthorized response and reject the request.
+**Validates: Requirements 11.1, 11.2, 11.3**
+
 ## Error Handling
 
 ### API Client Error Handling
@@ -378,10 +390,11 @@ type StatisticsSnapshot struct {
 
 ### API Server Error Handling
 
-1. **Input Validation**: Validate all query parameters. Return 400 with specific field errors.
-2. **Not Found**: Return 404 when requested resources don't exist.
-3. **Internal Errors**: Catch all unhandled exceptions. Return 500 with generic message. Log full error details.
-4. **Error Response Format**: Standardize error responses:
+1. **Authentication Errors**: Validate Authorization header. Return 401 for missing or invalid tokens.
+2. **Input Validation**: Validate all query parameters. Return 400 with specific field errors.
+3. **Not Found**: Return 404 when requested resources don't exist.
+4. **Internal Errors**: Catch all unhandled exceptions. Return 500 with generic message. Log full error details.
+5. **Error Response Format**: Standardize error responses:
 ```json
 {
   "error": {
@@ -389,6 +402,19 @@ type StatisticsSnapshot struct {
     "message": "Invalid query parameters",
     "details": {
       "level": "Must be a number between 1 and 60"
+    }
+  }
+}
+```
+
+**Authentication Error Example:**
+```json
+{
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Authentication required",
+    "details": {
+      "header": "Authorization header with Bearer token is required"
     }
   }
 }
@@ -506,7 +532,8 @@ WaniKani API uses cursor-based pagination:
 ### Configuration
 
 Configuration will be stored in environment variables or a config file:
-- `WANIKANI_API_TOKEN`: API token for authentication
+- `WANIKANI_API_TOKEN`: API token for authentication with external WaniKani API (required)
+- `LOCAL_API_TOKEN`: API token for authentication with local API server (optional, recommended)
 - `DATABASE_PATH`: Path to SQLite database file (default: "./wanikani.db")
 - `SYNC_SCHEDULE`: Cron expression for daily sync (default: "0 2 * * *" for 2 AM daily)
 - `API_PORT`: Port for API server (default: 8080)
@@ -517,6 +544,7 @@ Configuration can be loaded using a simple struct:
 ```go
 type Config struct {
     WaniKaniAPIToken string
+    LocalAPIToken    string
     DatabasePath     string
     SyncSchedule     string
     APIPort          int

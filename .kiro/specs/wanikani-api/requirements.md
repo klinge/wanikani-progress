@@ -13,7 +13,8 @@ This document specifies the requirements for a WaniKani Data API system. The sys
 - **Subject**: A learning item in WaniKani (radical, kanji, or vocabulary)
 - **Review**: A user's answer to a quiz question for a specific subject
 - **Assignment**: The relationship between a user and a subject, tracking progress
-- **API Token**: The authentication credential for accessing the WaniKani API
+- **WaniKani API Token**: The authentication credential for accessing the external WaniKani API
+- **Local API Token**: The authentication credential for accessing the local API Server
 - **Summary Statistics**: Aggregate data about user progress including lesson counts, review counts, and SRS stage distributions
 - **Sync Operation**: The process of fetching updated data from WaniKani and storing it locally
 
@@ -134,3 +135,15 @@ This document specifies the requirements for a WaniKani Data API system. The sys
 2. WHEN the Data Store encounters a write error, THE Data Store SHALL rollback partial changes to maintain data consistency
 3. WHEN the API Server encounters an internal error, THE API Server SHALL return status code 500 with a generic error message without exposing internal details
 4. WHEN validation fails on input data, THE system SHALL return specific error messages indicating which fields are invalid
+
+### Requirement 11
+
+**User Story:** As a developer, I want to protect the local API with authentication, so that only authorized clients can access the stored WaniKani data.
+
+#### Acceptance Criteria
+
+1. WHEN the API Server receives a request without an authorization header, THE API Server SHALL return status code 401 with an authentication error message
+2. WHEN the API Server receives a request with an invalid Local API Token, THE API Server SHALL return status code 401 with an authentication error message
+3. WHEN the API Server receives a request with a valid Local API Token in the authorization header, THE API Server SHALL process the request normally
+4. WHEN the Local API Token is configured, THE API Server SHALL validate all incoming requests except health check endpoints
+5. WHEN the API Server starts without a configured Local API Token, THE API Server SHALL log a warning and operate without authentication

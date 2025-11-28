@@ -225,6 +225,13 @@ func (s *Store) UpsertAssignments(ctx context.Context, assignments []domain.Assi
 	}
 	defer tx.Rollback()
 
+	// Validate that all referenced subjects exist
+	for _, assignment := range assignments {
+		if err := s.validateSubjectExists(ctx, tx, assignment.Data.SubjectID); err != nil {
+			return fmt.Errorf("assignment %d references invalid subject %d: %w", assignment.ID, assignment.Data.SubjectID, err)
+		}
+	}
+
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO assignments (id, object, url, data_updated_at, subject_id, data)
 		VALUES (?, ?, ?, ?, ?, ?)
@@ -331,6 +338,16 @@ func (s *Store) UpsertReviews(ctx context.Context, reviews []domain.Review) erro
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
+
+	// Validate that all referenced assignments and subjects exist
+	for _, review := range reviews {
+		if err := s.validateAssignmentExists(ctx, tx, review.Data.AssignmentID); err != nil {
+			return fmt.Errorf("review %d references invalid assignment %d: %w", review.ID, review.Data.AssignmentID, err)
+		}
+		if err := s.validateSubjectExists(ctx, tx, review.Data.SubjectID); err != nil {
+			return fmt.Errorf("review %d references invalid subject %d: %w", review.ID, review.Data.SubjectID, err)
+		}
+	}
 
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO reviews (id, object, url, data_updated_at, assignment_id, subject_id, data)
@@ -566,6 +583,56 @@ func (s *Store) SetLastSyncTime(ctx context.Context, dataType domain.DataType, t
 
 	if err != nil {
 		return fmt.Errorf("failed to set last sync time: %w", err)
+	}
+
+	return nil
+}
+
+// validateSubjectExists checks if a subject with the given ID exists in the database
+func (s *Store) validateSubjectExists(ctx context.Context, tx *sql.Tx, subjectID int) error {
+	var exists bool
+	var query string
+	var err error
+
+	if tx != nil {
+		query = `SELECT EXISTS(SELECT 1 FROM subjects WHERE id = ?)`
+		err = tx.QueryRowContext(ctx, query, subjectID).Scan(&exists)
+	} else {
+		query = `SELECT EXISTS(SELECT 1 FROM subjects WHERE id = ?)`
+		err = s.db.QueryRowContext(ctx, query, subjectID).Scan(&exists)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to check subject existence: %w", err)
+	}
+
+	if !exists {
+		return fmt.Errorf("subject with ID %d does not exist", subjectID)
+	}
+
+	return nil
+}
+
+// validateAssignmentExists checks if an assignment with the given ID exists in the database
+func (s *Store) validateAssignmentExists(ctx context.Context, tx *sql.Tx, assignmentID int) error {
+	var exists bool
+	var query string
+	var err error
+
+	if tx != nil {
+		query = `SELECT EXISTS(SELECT 1 FROM assignments WHERE id = ?)`
+		err = tx.QueryRowContext(ctx, query, assignmentID).Scan(&exists)
+	} else {
+		query = `SELECT EXISTS(SELECT 1 FROM assignments WHERE id = ?)`
+		err = s.db.QueryRowContext(ctx, query, assignmentID).Scan(&exists)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to check assignment existence: %w", err)
+	}
+
+	if !exists {
+		return fmt.Errorf("assignment with ID %d does not exist", assignmentID)
 	}
 
 	return nil

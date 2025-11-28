@@ -3,16 +3,24 @@ package wanikani
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"wanikani-api/internal/domain"
 )
 
+func testLogger() *logrus.Logger {
+	logger := logrus.New()
+	logger.SetOutput(io.Discard)
+	return logger
+}
+
 func TestSetAPIToken(t *testing.T) {
-	client := NewClient()
+	client := NewClient(testLogger())
 	token := "test-token-123"
 
 	client.SetAPIToken(token)
@@ -23,7 +31,7 @@ func TestSetAPIToken(t *testing.T) {
 }
 
 func TestSetAPITokenUpdates(t *testing.T) {
-	client := NewClient()
+	client := NewClient(testLogger())
 	token1 := "token-1"
 	token2 := "token-2"
 
@@ -54,7 +62,7 @@ func TestFetchSubjects_AuthenticationHeader(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(testLogger())
 	client.SetAPIToken(token)
 
 	// Override baseURL for testing by making a direct request
@@ -107,7 +115,7 @@ func TestFetchSubjects_Pagination(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(testLogger())
 	client.SetAPIToken(token)
 
 	// Test pagination by making direct requests
@@ -151,7 +159,7 @@ func TestFetchSubjects_WithUpdatedAfter(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(testLogger())
 	client.SetAPIToken(token)
 
 	updatedAfter := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -181,7 +189,7 @@ func TestAuthError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(testLogger())
 	client.SetAPIToken("invalid-token")
 
 	ctx := context.Background()
@@ -206,7 +214,7 @@ func TestRateLimitError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(testLogger())
 	client.SetAPIToken("test-token")
 
 	ctx := context.Background()
@@ -237,7 +245,7 @@ func TestGetRateLimitStatus(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(testLogger())
 	client.SetAPIToken("test-token")
 
 	ctx := context.Background()
@@ -277,7 +285,7 @@ func TestRetryLogic(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(testLogger())
 	client.SetAPIToken("test-token")
 
 	ctx := context.Background()
@@ -295,7 +303,7 @@ func TestRetryLogic(t *testing.T) {
 }
 
 func TestNoAPIToken(t *testing.T) {
-	client := NewClient()
+	client := NewClient(testLogger())
 
 	ctx := context.Background()
 	var response paginatedResponse
