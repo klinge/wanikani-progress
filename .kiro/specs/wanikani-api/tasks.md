@@ -251,7 +251,7 @@
   - **Property 29: Snapshot date ordering**
   - **Validates: Requirements 12.8**
 
-- [ ] 20. Update documentation for assignment snapshots
+- [x] 20. Update documentation for assignment snapshots
   - Add assignment snapshots endpoint to README
   - Document query parameters and response format
   - Provide example API calls and responses
@@ -260,3 +260,19 @@
 
 - [ ] 21. Final checkpoint - Ensure all tests pass including new snapshot tests
   - Ensure all tests pass, ask the user if questions arise.
+
+- [-] 22. Implement proper database migrations using goose
+  - Install goose library: `go get github.com/pressly/goose/v3`
+  - Create migrations directory structure at project root
+  - Extract current schema from store.go into initial migration file (00001_initial_schema.sql)
+  - Include both up and down migrations using goose directives (-- +goose Up/Down)
+  - Create migration for assignment_snapshots table (00002_add_assignment_snapshots.sql)
+  - Update store.go to remove inline migrate() method and use goose instead
+  - Add embed directive to embed migration files in binary
+  - Implement runMigrations() function that calls goose.Up() on startup
+  - Add migration execution to application startup in main.go
+  - Add logging for migration status (version applied, errors, etc.)
+  - Test both up and down migrations in development
+  - Document migration workflow in README (including optional goose CLI usage)
+  - _Design: Database Migration Strategy section_
+  - _Note: This addresses the technical debt of having schema creation mixed with application code_

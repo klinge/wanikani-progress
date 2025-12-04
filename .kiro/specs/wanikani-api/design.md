@@ -40,7 +40,7 @@ The system is designed for batch-style daily synchronization rather than real-ti
 - **HTTP Client**: net/http (standard library)
 - **Scheduling**: robfig/cron for daily sync jobs
 - **Testing**: testing (standard library) for unit tests, gopter for property-based testing
-- **Database Migrations**: golang-migrate/migrate
+- **Database Migrations**: goose (github.com/pressly/goose/v3)
 
 ## Components and Interfaces
 
@@ -597,6 +597,146 @@ Custom generators will be created for:
 - subject_type (TEXT, part of composite PRIMARY KEY)
 - count (INTEGER)
 - PRIMARY KEY (date, srs_stage, subject_type)
+
+### Database Migration Strategy
+
+**Overview:**
+Database migrations must be handled separately from application code to ensure data safety and enable proper version control of schema changes. The system uses `goose` (github.com/pressly/goose/v3) for managing database migrations.
+
+**Why Goose:**
+- Embeddable in Go applications (no separate CLI required)
+- Supports both SQL and Go migrations
+- Active development and good community support
+- Clean API with excellent error messages
+- Can embed migration files in binary for easy deployment
+
+**Migration Principles:**
+1. **Separation of Concerns**: Migration logic is separate from application code
+2. **Version Control**: Each migration has a version number and timestamp
+3. **Idempotency**: Migrations can be safely re-run without side effects
+4. **Rollback Support**: Each migration has an "up" and "down" version
+5. **Audit Trail**: Migration history is tracked in the `goose_db_version` table
+
+**Migration File Structure:**
+```
+migrations/
+  00001_initial_schema.sql
+  00002_add_assignment_snapshots.sql
+```
+
+Each migration file contains both up and down migrations using goose directives:
+
+**Migration Workflow:**
+1. **Development**: Create new migration files with sequential version numbers
+2. **Testing**: Test both "up" and "down" migrations in development environment
+3. **Deployment**: Migrations run automatically on application startup
+4. **Verification**: Check migration status via logs or database query
+
+**Migration Execution:**
+- Migrations run automatically on application startup (embedded in application)
+- Migrations can also be run manually via goose CLI for production safety
+- Migration version is tracked in `goose_db_version` table
+- Failed migrations are logged and prevent application startup
+- Migrations run in transactions (automatic rollback on failure)
+
+**Safety Measures:**
+- Never modify existing migration files after they've been applied
+- Always create new migrations for schema changes
+- Test migrations with production-like data volumes
+- Backup database before running migrations in production
+- Goose automatically wraps migrations in transactions
+
+**Example Migration File (00001_initial_schema.sql):**
+```sql
+-- +goose Up
+-- +goose StatementBegin
+CREATE TABLE subjects (
+    id INTEGER PRIMARY KEY,
+    object TEXT NOT NULL,
+    url TEXT NOT NULL,
+    data_updated_at TEXT NOT NULL,
+    data TEXT NOT NULL
+);
+
+CREATE INDEX idx_subjects_data_updated_at ON subjects(data_updated_at);
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+DROP INDEX IF EXISTS idx_subjects_data_updated_at;
+DROP TABLE IF EXISTS subjects;
+-- +goose StatementEnd
+```
+
+**Example Migration File (00002_add_assignment_snapshots.sql):**
+```sql
+-- +goose Up
+-- +goose StatementBegin
+CREATE TABLE assignment_snapshots (
+    date TEXT NOT NULL,
+    srs_stage INTEGER NOT NULL,
+    subject_type TEXT NOT NULL,
+    count INTEGER NOT NULL,
+    PRIMARY KEY (date, srs_stage, subject_type)
+);
+
+CREATE INDEX idx_assignment_snapshots_date ON assignment_snapshots(date);
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+DROP INDEX IF EXISTS idx_assignment_snapshots_date;
+DROP TABLE IF EXISTS assignment_snapshots;
+-- +goose StatementEnd
+```
+
+**Application Integration:**
+```go
+import (
+    "database/sql"
+    "embed"
+    
+    "github.com/pressly/goose/v3"
+)
+
+//go:embed migrations/*.sql
+var embedMigrations embed.FS
+
+func runMigrations(db *sql.DB) error {
+    goose.SetBaseFS(embedMigrations)
+    
+    if err := goose.SetDialect("sqlite3"); err != nil {
+        return fmt.Errorf("failed to set dialect: %w", err)
+    }
+    
+    if err := goose.Up(db, "migrations"); err != nil {
+        return fmt.Errorf("failed to run migrations: %w", err)
+    }
+    
+    return nil
+}
+```
+
+**CLI Commands (optional, for manual control):**
+```bash
+# Install goose CLI
+go install github.com/pressly/goose/v3/cmd/goose@latest
+
+# Create new migration
+goose -dir migrations create add_new_feature sql
+
+# Apply all pending migrations
+goose -dir migrations sqlite3 ./wanikani.db up
+
+# Rollback last migration
+goose -dir migrations sqlite3 ./wanikani.db down
+
+# Check migration status
+goose -dir migrations sqlite3 ./wanikani.db status
+
+# Reset database (use with caution)
+goose -dir migrations sqlite3 ./wanikani.db reset
+```
 
 ### Rate Limiting Strategy
 

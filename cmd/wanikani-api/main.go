@@ -2,17 +2,20 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	"wanikani-api/internal/api"
 	"wanikani-api/internal/config"
-	"wanikani-api/internal/utils"
+	"wanikani-api/internal/migrations"
 	"wanikani-api/internal/store/sqlite"
 	"wanikani-api/internal/sync"
+	"wanikani-api/internal/utils"
 	"wanikani-api/internal/wanikani"
 )
 
@@ -35,6 +38,30 @@ func main() {
 		"log_level":     cfg.LogLevel,
 	}).Info("Configuration loaded")
 
+	// Run database migrations
+	log.Info("Running database migrations...")
+	db, err := sql.Open("sqlite3", cfg.DatabasePath)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to open database for migrations")
+	}
+
+	if err := migrations.Run(db); err != nil {
+		db.Close()
+		log.WithError(err).Fatal("Failed to run database migrations")
+	}
+
+	version, err := migrations.Version(db)
+	if err != nil {
+		log.WithError(err).Warn("Failed to get migration version")
+	} else {
+		log.WithField("version", version).Info("Database migrations completed successfully")
+	}
+
+	// Close the migration connection
+	if err := db.Close(); err != nil {
+		log.WithError(err).Warn("Failed to close migration database connection")
+	}
+
 	// Initialize database store
 	store, err := sqlite.New(cfg.DatabasePath)
 	if err != nil {
@@ -45,7 +72,7 @@ func main() {
 			log.WithError(err).Error("Error closing database")
 		}
 	}()
-	log.Info("Database initialized successfully")
+	log.Info("Database store initialized successfully")
 
 	// Initialize WaniKani API client
 	client := wanikani.NewClient(log)

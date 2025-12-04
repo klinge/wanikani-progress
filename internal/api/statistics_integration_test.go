@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
+	_ "github.com/mattn/go-sqlite3"
 	"wanikani-api/internal/domain"
+	"wanikani-api/internal/migrations"
 	"wanikani-api/internal/store/sqlite"
 )
 
@@ -21,6 +24,22 @@ func TestStatisticsHistoricalTrackingIntegration(t *testing.T) {
 	dbPath := "test_statistics_integration.db"
 	defer os.Remove(dbPath)
 
+	// Open database and run migrations
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+
+	if err := migrations.Run(db); err != nil {
+		db.Close()
+		t.Fatalf("failed to run migrations: %v", err)
+	}
+
+	if err := db.Close(); err != nil {
+		t.Fatalf("failed to close migration connection: %v", err)
+	}
+
+	// Create store
 	store, err := sqlite.New(dbPath)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)

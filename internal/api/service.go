@@ -163,8 +163,8 @@ func (s *Service) GetAssignmentSnapshots(ctx context.Context, dateRange *domain.
 			result[dateStr][stageName] = make(map[string]int)
 		}
 
-		// Add count for this subject type
-		result[dateStr][stageName][snapshot.SubjectType] = snapshot.Count
+		// Add count for this subject type (sum across multiple SRS stages that map to same name)
+		result[dateStr][stageName][snapshot.SubjectType] += snapshot.Count
 	}
 
 	// Calculate and include totals for each SRS stage

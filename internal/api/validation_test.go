@@ -743,3 +743,99 @@ type customMockStore struct {
 func (m *customMockStore) GetAssignmentSnapshots(ctx context.Context, dateRange *domain.DateRange) ([]domain.AssignmentSnapshot, error) {
 	return m.snapshots, nil
 }
+
+// TestAssignmentSnapshotsAggregation tests that counts are properly aggregated across SRS stages
+func TestAssignmentSnapshotsAggregation(t *testing.T) {
+	// Create test data with multiple SRS stages mapping to same stage name
+	date1, _ := time.Parse("2006-01-02", "2024-01-15")
+
+	testSnapshots := []domain.AssignmentSnapshot{
+		// Apprentice stages (1-4) - should be summed
+		{Date: date1, SRSStage: 1, SubjectType: "kanji", Count: 5},
+		{Date: date1, SRSStage: 2, SubjectType: "kanji", Count: 3},
+		{Date: date1, SRSStage: 3, SubjectType: "kanji", Count: 2},
+		{Date: date1, SRSStage: 4, SubjectType: "kanji", Count: 1},
+		{Date: date1, SRSStage: 1, SubjectType: "radical", Count: 2},
+		{Date: date1, SRSStage: 2, SubjectType: "radical", Count: 1},
+		{Date: date1, SRSStage: 3, SubjectType: "vocabulary", Count: 4},
+		{Date: date1, SRSStage: 4, SubjectType: "vocabulary", Count: 3},
+		// Guru stages (5-6) - should be summed
+		{Date: date1, SRSStage: 5, SubjectType: "kanji", Count: 10},
+		{Date: date1, SRSStage: 6, SubjectType: "kanji", Count: 8},
+		{Date: date1, SRSStage: 5, SubjectType: "vocabulary", Count: 15},
+		{Date: date1, SRSStage: 6, SubjectType: "vocabulary", Count: 12},
+	}
+
+	customStore := &customMockStore{snapshots: testSnapshots}
+	syncService := &mockSyncService{}
+	service := NewService(customStore, syncService)
+	handler := NewHandler(service, testLogger())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/assignments/snapshots", nil)
+	w := httptest.NewRecorder()
+
+	handler.HandleGetAssignmentSnapshots(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	var result map[string]map[string]map[string]int
+	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	date1Str := "2024-01-15"
+
+	// Verify apprentice aggregation (stages 1-4)
+	if apprentice, ok := result[date1Str]["apprentice"]; ok {
+		// Kanji: 5 + 3 + 2 + 1 = 11
+		expectedKanji := 11
+		if apprentice["kanji"] != expectedKanji {
+			t.Errorf("expected %d kanji in apprentice (5+3+2+1), got %d", expectedKanji, apprentice["kanji"])
+		}
+
+		// Radical: 2 + 1 = 3
+		expectedRadical := 3
+		if apprentice["radical"] != expectedRadical {
+			t.Errorf("expected %d radicals in apprentice (2+1), got %d", expectedRadical, apprentice["radical"])
+		}
+
+		// Vocabulary: 4 + 3 = 7
+		expectedVocab := 7
+		if apprentice["vocabulary"] != expectedVocab {
+			t.Errorf("expected %d vocabulary in apprentice (4+3), got %d", expectedVocab, apprentice["vocabulary"])
+		}
+
+		// Total: 11 + 3 + 7 = 21
+		expectedTotal := 21
+		if apprentice["total"] != expectedTotal {
+			t.Errorf("expected total %d in apprentice, got %d", expectedTotal, apprentice["total"])
+		}
+	} else {
+		t.Fatal("expected apprentice stage in result")
+	}
+
+	// Verify guru aggregation (stages 5-6)
+	if guru, ok := result[date1Str]["guru"]; ok {
+		// Kanji: 10 + 8 = 18
+		expectedKanji := 18
+		if guru["kanji"] != expectedKanji {
+			t.Errorf("expected %d kanji in guru (10+8), got %d", expectedKanji, guru["kanji"])
+		}
+
+		// Vocabulary: 15 + 12 = 27
+		expectedVocab := 27
+		if guru["vocabulary"] != expectedVocab {
+			t.Errorf("expected %d vocabulary in guru (15+12), got %d", expectedVocab, guru["vocabulary"])
+		}
+
+		// Total: 18 + 27 = 45
+		expectedTotal := 45
+		if guru["total"] != expectedTotal {
+			t.Errorf("expected total %d in guru, got %d", expectedTotal, guru["total"])
+		}
+	} else {
+		t.Fatal("expected guru stage in result")
+	}
+}

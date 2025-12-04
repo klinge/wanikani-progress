@@ -17,6 +17,7 @@ type Store struct {
 }
 
 // New creates a new SQLite store
+// Note: Migrations should be run separately before creating the store
 func New(dbPath string) (*Store, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -30,11 +31,6 @@ func New(dbPath string) (*Store, error) {
 
 	store := &Store{db: db}
 
-	// Run migrations
-	if err := store.migrate(); err != nil {
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
-	}
-
 	return store, nil
 }
 
@@ -46,72 +42,6 @@ func (s *Store) Close() error {
 // BeginTx starts a new database transaction
 func (s *Store) BeginTx(ctx context.Context) (*sql.Tx, error) {
 	return s.db.BeginTx(ctx, nil)
-}
-
-// migrate creates the database schema
-func (s *Store) migrate() error {
-	schema := `
-	CREATE TABLE IF NOT EXISTS subjects (
-		id INTEGER PRIMARY KEY,
-		object TEXT NOT NULL,
-		url TEXT NOT NULL,
-		data_updated_at TEXT NOT NULL,
-		data TEXT NOT NULL
-	);
-
-	CREATE TABLE IF NOT EXISTS assignments (
-		id INTEGER PRIMARY KEY,
-		object TEXT NOT NULL,
-		url TEXT NOT NULL,
-		data_updated_at TEXT NOT NULL,
-		subject_id INTEGER NOT NULL,
-		data TEXT NOT NULL,
-		FOREIGN KEY (subject_id) REFERENCES subjects(id)
-	);
-
-	CREATE TABLE IF NOT EXISTS reviews (
-		id INTEGER PRIMARY KEY,
-		object TEXT NOT NULL,
-		url TEXT NOT NULL,
-		data_updated_at TEXT NOT NULL,
-		assignment_id INTEGER NOT NULL,
-		subject_id INTEGER NOT NULL,
-		data TEXT NOT NULL,
-		FOREIGN KEY (assignment_id) REFERENCES assignments(id),
-		FOREIGN KEY (subject_id) REFERENCES subjects(id)
-	);
-
-	CREATE TABLE IF NOT EXISTS statistics_snapshots (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		timestamp TEXT NOT NULL,
-		data TEXT NOT NULL
-	);
-
-	CREATE TABLE IF NOT EXISTS sync_metadata (
-		data_type TEXT PRIMARY KEY,
-		last_sync_time TEXT NOT NULL
-	);
-
-	CREATE TABLE IF NOT EXISTS assignment_snapshots (
-		date TEXT NOT NULL,
-		srs_stage INTEGER NOT NULL,
-		subject_type TEXT NOT NULL,
-		count INTEGER NOT NULL,
-		PRIMARY KEY (date, srs_stage, subject_type)
-	);
-
-	CREATE INDEX IF NOT EXISTS idx_subjects_data_updated_at ON subjects(data_updated_at);
-	CREATE INDEX IF NOT EXISTS idx_assignments_subject_id ON assignments(subject_id);
-	CREATE INDEX IF NOT EXISTS idx_assignments_data_updated_at ON assignments(data_updated_at);
-	CREATE INDEX IF NOT EXISTS idx_reviews_assignment_id ON reviews(assignment_id);
-	CREATE INDEX IF NOT EXISTS idx_reviews_subject_id ON reviews(subject_id);
-	CREATE INDEX IF NOT EXISTS idx_reviews_data_updated_at ON reviews(data_updated_at);
-	CREATE INDEX IF NOT EXISTS idx_statistics_snapshots_timestamp ON statistics_snapshots(timestamp);
-	CREATE INDEX IF NOT EXISTS idx_assignment_snapshots_date ON assignment_snapshots(date);
-	`
-
-	_, err := s.db.Exec(schema)
-	return err
 }
 
 // UpsertSubjects inserts or updates subjects

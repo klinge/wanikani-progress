@@ -2,23 +2,50 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/gorilla/mux"
+	_ "github.com/mattn/go-sqlite3"
 	"wanikani-api/internal/domain"
+	"wanikani-api/internal/migrations"
 	"wanikani-api/internal/store/sqlite"
 	"wanikani-api/internal/sync"
 	"wanikani-api/internal/wanikani"
 )
 
-// setupTestServer creates a test server with an in-memory database
+// setupTestServer creates a test server with a properly migrated database
 func setupTestServer(t *testing.T) (*Server, *sqlite.Store) {
-	// Create in-memory SQLite database
-	store, err := sqlite.New(":memory:")
+	t.Helper()
+
+	// Create temporary database file
+	dbPath := "test_api_" + t.Name() + ".db"
+	t.Cleanup(func() {
+		os.Remove(dbPath)
+	})
+
+	// Open database and run migrations
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatalf("Failed to open database: %v", err)
+	}
+
+	if err := migrations.Run(db); err != nil {
+		db.Close()
+		t.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	if err := db.Close(); err != nil {
+		t.Fatalf("Failed to close migration connection: %v", err)
+	}
+
+	// Create store
+	store, err := sqlite.New(dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}

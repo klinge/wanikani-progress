@@ -188,6 +188,10 @@ curl "http://localhost:8080/api/reviews?from=2024-01-01&to=2024-01-31" \
 # Get latest statistics
 curl http://localhost:8080/api/statistics/latest \
   -H "Authorization: Bearer your_local_token_here"
+
+# Get assignment snapshots to track progress over time
+curl "http://localhost:8080/api/assignments/snapshots?from=2024-01-01&to=2024-01-31" \
+  -H "Authorization: Bearer your_local_token_here"
 ```
 
 ## API Endpoints
@@ -295,6 +299,130 @@ curl "http://localhost:8080/api/statistics?from=2024-01-01&to=2024-01-31" \
   -H "Authorization: Bearer your_token"
 ```
 
+### Assignment Snapshots
+
+```
+GET /api/assignments/snapshots
+```
+
+Retrieve daily snapshots of assignment distribution by SRS stage and subject type. This endpoint provides a historical view of your learning progress, showing how your assignments are distributed across different SRS stages over time.
+
+**Query Parameters:**
+- `from` - Start date (ISO 8601 format: `YYYY-MM-DD`) - Optional
+- `to` - End date (ISO 8601 format: `YYYY-MM-DD`) - Optional
+
+**SRS Stage Name Mapping:**
+
+Assignment snapshots use human-readable SRS stage names instead of numeric values:
+
+| Numeric Stage | Stage Name | Description |
+|---------------|------------|-------------|
+| 1-4 | `apprentice` | Learning stage with frequent reviews |
+| 5-6 | `guru` | Items you're getting comfortable with |
+| 7 | `master` | Well-learned items |
+| 8 | `enlightened` | Nearly mastered items |
+| 9 | `burned` | Fully mastered items (no more reviews) |
+
+**Note:** Unstarted assignments (SRS stage 0) are excluded from snapshots.
+
+**Example:**
+```bash
+# Get all snapshots
+curl http://localhost:8080/api/assignments/snapshots \
+  -H "Authorization: Bearer your_token"
+
+# Get snapshots for a specific date range
+curl "http://localhost:8080/api/assignments/snapshots?from=2024-01-01&to=2024-01-31" \
+  -H "Authorization: Bearer your_token"
+```
+
+**Response Format:**
+
+The response groups snapshots by date, with each date containing SRS stage names as keys. Each SRS stage shows counts for each subject type (radical, kanji, vocabulary) plus a total.
+
+```json
+{
+  "2024-01-15": {
+    "apprentice": {
+      "radical": 6,
+      "kanji": 15,
+      "vocabulary": 20,
+      "total": 41
+    },
+    "guru": {
+      "radical": 10,
+      "kanji": 25,
+      "vocabulary": 30,
+      "total": 65
+    },
+    "master": {
+      "radical": 5,
+      "kanji": 12,
+      "vocabulary": 18,
+      "total": 35
+    },
+    "enlightened": {
+      "radical": 3,
+      "kanji": 8,
+      "vocabulary": 10,
+      "total": 21
+    },
+    "burned": {
+      "radical": 50,
+      "kanji": 120,
+      "vocabulary": 200,
+      "total": 370
+    }
+  },
+  "2024-01-16": {
+    "apprentice": {
+      "radical": 8,
+      "kanji": 18,
+      "vocabulary": 25,
+      "total": 51
+    },
+    "guru": {
+      "radical": 9,
+      "kanji": 23,
+      "vocabulary": 28,
+      "total": 60
+    },
+    "master": {
+      "radical": 5,
+      "kanji": 13,
+      "vocabulary": 19,
+      "total": 37
+    },
+    "enlightened": {
+      "radical": 3,
+      "kanji": 8,
+      "vocabulary": 10,
+      "total": 21
+    },
+    "burned": {
+      "radical": 50,
+      "kanji": 121,
+      "vocabulary": 201,
+      "total": 372
+    }
+  }
+}
+```
+
+**Response Details:**
+- Dates are returned in ascending chronological order (oldest first)
+- Each date contains all SRS stages that have assignments
+- The `total` field for each SRS stage is the sum of all subject types
+- Only dates within the specified range (if provided) are included
+- Snapshots are created automatically after each successful sync operation
+
+**Use Cases:**
+- Track learning progress over time
+- Visualize how items move through SRS stages
+- Identify trends in your study patterns
+- Monitor the growth of burned (mastered) items
+- Create charts showing assignment distribution
+
 ### Trigger Sync
 
 ```
@@ -388,6 +516,130 @@ curl http://localhost:8080/api/subjects \
 3. **Never commit tokens** to version control (`.env` is in `.gitignore`)
 4. **Use HTTPS** if exposing the API over a network
 5. **Restrict network access** using firewall rules if needed
+
+## Database Migrations
+
+The application uses [goose](https://github.com/pressly/goose) for database schema management. Migrations are automatically applied when the application starts.
+
+### Automatic Migrations
+
+When you start the application, it will:
+1. Check the current database version
+2. Apply any pending migrations
+3. Log the migration status and version
+
+**Example startup log:**
+```
+INFO Running database migrations...
+INFO Database migrations completed successfully version=2
+INFO Database store initialized successfully
+```
+
+### Migration Files
+
+Migration files are located in `internal/migrations/` and are embedded in the application binary. Each migration has both "up" (apply) and "down" (rollback) versions.
+
+Current migrations:
+- `00001_initial_schema.sql` - Creates core tables (subjects, assignments, reviews, statistics_snapshots, sync_metadata)
+- `00002_add_assignment_snapshots.sql` - Adds assignment_snapshots table for historical tracking
+
+### Manual Migration Management (Optional)
+
+For advanced use cases, you can manage migrations manually using the goose CLI:
+
+#### Install goose CLI
+
+```bash
+go install github.com/pressly/goose/v3/cmd/goose@latest
+```
+
+#### Common goose Commands
+
+```bash
+# Check migration status
+goose -dir internal/migrations sqlite3 ./data/wanikani.db status
+
+# Apply all pending migrations
+goose -dir internal/migrations sqlite3 ./data/wanikani.db up
+
+# Rollback the last migration
+goose -dir internal/migrations sqlite3 ./data/wanikani.db down
+
+# Rollback all migrations (use with caution!)
+goose -dir internal/migrations sqlite3 ./data/wanikani.db reset
+
+# Create a new migration file
+goose -dir internal/migrations create add_new_feature sql
+```
+
+#### Migration File Format
+
+Each migration file follows this structure:
+
+```sql
+-- +goose Up
+-- +goose StatementBegin
+CREATE TABLE example (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL
+);
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+DROP TABLE IF EXISTS example;
+-- +goose StatementEnd
+```
+
+### Creating New Migrations
+
+If you need to modify the database schema:
+
+1. **Create a new migration file** (don't modify existing ones):
+   ```bash
+   goose -dir internal/migrations create your_migration_name sql
+   ```
+
+2. **Edit the migration file** with your schema changes:
+   - Add your changes in the `-- +goose Up` section
+   - Add the reverse changes in the `-- +goose Down` section
+
+3. **Test the migration**:
+   ```bash
+   # Apply the migration
+   goose -dir internal/migrations sqlite3 ./data/wanikani.db up
+   
+   # Test rollback
+   goose -dir internal/migrations sqlite3 ./data/wanikani.db down
+   
+   # Re-apply
+   goose -dir internal/migrations sqlite3 ./data/wanikani.db up
+   ```
+
+4. **Restart the application** - it will automatically apply the new migration
+
+### Migration Best Practices
+
+- **Never modify existing migration files** after they've been applied
+- **Always create new migrations** for schema changes
+- **Test both up and down migrations** before deploying
+- **Backup your database** before running migrations in production
+- **Migrations run in transactions** - they automatically rollback on failure
+
+### Troubleshooting Migrations
+
+**"Migration failed" error:**
+- Check the migration SQL syntax
+- Ensure foreign key constraints are satisfied
+- Review the error message in the logs
+
+**"Database version mismatch":**
+- Check `goose_db_version` table for current version
+- Use `goose status` to see which migrations are applied
+
+**"Migration already applied":**
+- Goose tracks applied migrations automatically
+- Check `goose_db_version` table if you suspect issues
 
 ## Building
 
@@ -549,6 +801,7 @@ For more details, see [README_TESTING.md](README_TESTING.md).
 - `assignments` - User progress on subjects
 - `reviews` - Quiz history
 - `statistics_snapshots` - Historical statistics with timestamps
+- `assignment_snapshots` - Daily snapshots of assignment distribution by SRS stage and subject type
 - `sync_metadata` - Last sync timestamps for incremental updates
 
 For more details, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

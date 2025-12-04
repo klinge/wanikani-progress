@@ -2,22 +2,51 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"testing"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	"wanikani-api/internal/domain"
+	"wanikani-api/internal/migrations"
 )
+
+
+// setupTestStore creates a test store with migrations applied
+func setupTestStore(t *testing.T, dbPath string) *Store {
+	t.Helper()
+
+	// Open database and run migrations
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+
+	if err := migrations.Run(db); err != nil {
+		db.Close()
+		t.Fatalf("failed to run migrations: %v", err)
+	}
+
+	if err := db.Close(); err != nil {
+		t.Fatalf("failed to close migration connection: %v", err)
+	}
+
+	// Create store
+	store, err := New(dbPath)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+
+	return store
+}
 
 func TestStore_UpsertAndGetSubjects(t *testing.T) {
 	// Create temporary database
 	dbPath := "test_subjects.db"
 	defer os.Remove(dbPath)
 
-	store, err := New(dbPath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
+	store := setupTestStore(t, dbPath)
 	defer store.Close()
 
 	ctx := context.Background()
@@ -53,7 +82,7 @@ func TestStore_UpsertAndGetSubjects(t *testing.T) {
 	}
 
 	// Test upsert
-	err = store.UpsertSubjects(ctx, subjects)
+	err := store.UpsertSubjects(ctx, subjects)
 	if err != nil {
 		t.Fatalf("failed to upsert subjects: %v", err)
 	}
@@ -104,10 +133,7 @@ func TestStore_UpsertAndGetAssignments(t *testing.T) {
 	dbPath := "test_assignments.db"
 	defer os.Remove(dbPath)
 
-	store, err := New(dbPath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
+	store := setupTestStore(t, dbPath)
 	defer store.Close()
 
 	ctx := context.Background()
@@ -125,7 +151,7 @@ func TestStore_UpsertAndGetAssignments(t *testing.T) {
 			},
 		},
 	}
-	err = store.UpsertSubjects(ctx, subjects)
+	err := store.UpsertSubjects(ctx, subjects)
 	if err != nil {
 		t.Fatalf("failed to upsert subjects: %v", err)
 	}
@@ -178,10 +204,7 @@ func TestStore_TransactionRollback(t *testing.T) {
 	dbPath := "test_transaction.db"
 	defer os.Remove(dbPath)
 
-	store, err := New(dbPath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
+	store := setupTestStore(t, dbPath)
 	defer store.Close()
 
 	ctx := context.Background()
@@ -222,10 +245,7 @@ func TestStore_SyncMetadata(t *testing.T) {
 	dbPath := "test_sync.db"
 	defer os.Remove(dbPath)
 
-	store, err := New(dbPath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
+	store := setupTestStore(t, dbPath)
 	defer store.Close()
 
 	ctx := context.Background()
@@ -284,10 +304,7 @@ func TestStore_Statistics(t *testing.T) {
 	dbPath := "test_statistics.db"
 	defer os.Remove(dbPath)
 
-	store, err := New(dbPath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
+	store := setupTestStore(t, dbPath)
 	defer store.Close()
 
 	ctx := context.Background()
@@ -309,7 +326,7 @@ func TestStore_Statistics(t *testing.T) {
 
 	// Insert first snapshot
 	timestamp1 := time.Now().Add(-2 * time.Hour)
-	err = store.InsertStatistics(ctx, stats, timestamp1)
+	err := store.InsertStatistics(ctx, stats, timestamp1)
 	if err != nil {
 		t.Fatalf("failed to insert statistics: %v", err)
 	}
@@ -352,10 +369,7 @@ func TestStore_StatisticsHistoricalTracking(t *testing.T) {
 	dbPath := "test_statistics_historical.db"
 	defer os.Remove(dbPath)
 
-	store, err := New(dbPath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
+	store := setupTestStore(t, dbPath)
 	defer store.Close()
 
 	ctx := context.Background()
@@ -595,15 +609,13 @@ func TestStore_ReferentialIntegrity(t *testing.T) {
 	dbPath := "test_referential.db"
 	defer os.Remove(dbPath)
 
-	store, err := New(dbPath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
+	store := setupTestStore(t, dbPath)
 	defer store.Close()
 
 	ctx := context.Background()
 
 	t.Run("assignment with non-existent subject fails", func(t *testing.T) {
+		var err error
 		// Try to insert an assignment without a subject (should fail)
 		assignments := []domain.Assignment{
 			{
@@ -626,6 +638,7 @@ func TestStore_ReferentialIntegrity(t *testing.T) {
 	})
 
 	t.Run("assignment with valid subject succeeds", func(t *testing.T) {
+		var err error
 		// First create a subject
 		subjects := []domain.Subject{
 			{
@@ -666,6 +679,7 @@ func TestStore_ReferentialIntegrity(t *testing.T) {
 	})
 
 	t.Run("review with non-existent assignment fails", func(t *testing.T) {
+		var err error
 		// Try to insert a review without an assignment (should fail)
 		reviews := []domain.Review{
 			{
@@ -688,6 +702,7 @@ func TestStore_ReferentialIntegrity(t *testing.T) {
 	})
 
 	t.Run("review with non-existent subject fails", func(t *testing.T) {
+		var err error
 		// Try to insert a review with non-existent subject (should fail)
 		reviews := []domain.Review{
 			{
@@ -710,6 +725,7 @@ func TestStore_ReferentialIntegrity(t *testing.T) {
 	})
 
 	t.Run("review with valid assignment and subject succeeds", func(t *testing.T) {
+		var err error
 		// Insert a review with valid references
 		reviews := []domain.Review{
 			{
@@ -738,10 +754,7 @@ func TestStore_AssignmentSnapshots(t *testing.T) {
 	dbPath := "test_assignment_snapshots.db"
 	defer os.Remove(dbPath)
 
-	store, err := New(dbPath)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
-	}
+	store := setupTestStore(t, dbPath)
 	defer store.Close()
 
 	ctx := context.Background()
