@@ -38,7 +38,7 @@ type ErrorDetail struct {
 
 // writeError writes an error response
 func (h *Handler) writeError(w http.ResponseWriter, code int, errorCode, message string, details map[string]string) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
 	
 	h.logger.WithFields(logrus.Fields{
@@ -108,7 +108,7 @@ func stringContains(s, substr string) bool {
 
 // writeJSON writes a JSON response
 func writeJSON(w http.ResponseWriter, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	json.NewEncoder(w).Encode(data)
 }
 

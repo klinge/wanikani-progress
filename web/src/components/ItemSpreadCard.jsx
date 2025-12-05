@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Egg, Flower2, Flower, Sparkles, Flame } from 'lucide-react';
+import { Egg, Turtle, Flower, Sparkles, Flame } from 'lucide-react';
 import { yesterdayISO } from '../utils/date';
 import { wanikaniAPI } from '../services/api';
 
 const stages = [
     { name: 'Apprentice', icon: Egg, radical: 'bg-blue-500', kanji: 'bg-pink-500', vocab: 'bg-purple-500', total: 'bg-gray-500' },
-    { name: 'Guru', icon: Flower2, radical: 'bg-blue-500', kanji: 'bg-pink-500', vocab: 'bg-purple-500', total: 'bg-gray-500' },
+    { name: 'Guru', icon: Turtle, radical: 'bg-blue-500', kanji: 'bg-pink-500', vocab: 'bg-purple-500', total: 'bg-gray-500' },
     { name: 'Master', icon: Flower, radical: 'bg-blue-500', kanji: 'bg-pink-500', vocab: 'bg-purple-500', total: 'bg-gray-500' },
     { name: 'Enlightened', icon: Sparkles, radical: 'bg-blue-500', kanji: 'bg-pink-500', vocab: 'bg-purple-500', total: 'bg-gray-500' },
     { name: 'Burned', icon: Flame, radical: 'bg-blue-500', kanji: 'bg-pink-500', vocab: 'bg-purple-500', total: 'bg-gray-500' },
@@ -118,7 +118,7 @@ export default function ItemSpreadCard() {
                             >
                                 {/* Stage name + icon */}
                                 <div className="flex items-center gap-3 w-36">
-                                    <Icon className="w-5 h-4 text-gray-600" />
+                                    <Icon className="w-6 h-5 text-gray-600" />
                                     <span className="text-lg text-gray-800">{stage.name}</span>
                                 </div>
 
