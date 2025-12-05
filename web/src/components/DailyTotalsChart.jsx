@@ -160,6 +160,10 @@ export default function DailyTotalsChart() {
 
   const options = {
     responsive: true,
+    maintainAspectRatio: false,
+    layout: {
+      padding: 0
+    },
     plugins: {
       legend: {
         position: 'bottom',
@@ -172,9 +176,15 @@ export default function DailyTotalsChart() {
     scales: {
       x: {
         stacked: true,
+        grid: {
+          color: '#f3f4f6'
+        }
       },
       y: {
         stacked: true,
+        grid: {
+          color: '#f3f4f6'
+        }
       },
     },
   };
@@ -204,8 +214,8 @@ export default function DailyTotalsChart() {
 
   return (
     <div className="w-full h-full">
-      <div className="bg-white rounded-2xl shadow-lg p-8 h-full flex flex-col">
-        <div className="flex justify-between items-center mb-6">
+      <div className="bg-white rounded-2xl shadow-lg h-full flex flex-col">
+        <div className="flex justify-between items-center px-6 pt-6 pb-4">
           <h2 className="text-2xl font-bold text-gray-900">Daily Item Totals</h2>
           <button
             onClick={handleSync}
@@ -215,7 +225,7 @@ export default function DailyTotalsChart() {
             {syncing ? 'Syncing...' : 'Sync Data'}
           </button>
         </div>
-        <div className="flex-1">
+        <div className="flex-1 pt-4 pl-4 bg-gray-100 rounded-lg mx-4 mb-4">
           <Bar data={chartData} options={options} />
         </div>
       </div>
