@@ -25,7 +25,9 @@ export const wanikaniAPI = {
     const params = {};
     if (from) params.from = from;
     if (to) params.to = to;
-    return api.get('/assignments/snapshots', { params });
+    const result = api.get('/assignments/snapshots', { params });
+    //console.info('API getAssignmentSnapshots called with params:', params, 'Result:', result);
+    return result;
   },
 
   // Get latest statistics
@@ -36,6 +38,9 @@ export const wanikaniAPI = {
 
   // Get assignments
   getAssignments: (filters = {}) => api.get('/assignments', { params: filters }),
+
+  // Trigger sync
+  triggerSync: () => api.post('/sync'),
 
   // Health check
   getHealth: () => api.get('/health'),
