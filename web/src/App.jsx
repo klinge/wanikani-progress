@@ -25,7 +25,7 @@ function App() {
           </div>
 
           {/* Third component - spans both columns */}
-          <div className="w-full h-80 lg:h-96 lg:col-span-2 mt-12">
+          <div className="w-full h-80 lg:h-120 lg:col-span-2">
             <DailyProportionsChart />
           </div>
         </div>
