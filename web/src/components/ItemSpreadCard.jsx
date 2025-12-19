@@ -78,7 +78,7 @@ export default function ItemSpreadCard() {
         <div className="w-full h-full">
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden h-full flex flex-col">
                 {/* Header */}
-                <div className="px-6 pt-6 pb-4">
+                <div className="px-6 py-2">
                     <div className="flex items-center justify-between">
                         <h2 className="text-2xl font-bold text-gray-900">Item Spread</h2>
                         <div className="flex items-center gap-4 text-sm">
@@ -114,7 +114,7 @@ export default function ItemSpreadCard() {
                         return (
                             <div
                                 key={stage.name}
-                                className="flex items-center bg-gray-200 rounded-lg px-2 py-1.5 shadow-sm border border-gray-300/70"
+                                className="flex items-center bg-gray-200 rounded-lg px-2 py-2 shadow-sm border border-gray-300/70"
                             >
                                 {/* Stage name + icon */}
                                 <div className="flex items-center gap-3 w-36">

@@ -32,6 +32,12 @@ clean:
 	@echo "Cleaning..."
 	$(GOCLEAN)
 	rm -rf $(BUILD_DIR)
+
+# Clean build artifacts and database (use with caution)
+clean-all:
+	@echo "Cleaning everything including database..."
+	$(GOCLEAN)
+	rm -rf $(BUILD_DIR)
 	rm -f *.db *.db-shm *.db-wal
 
 # Run tests

@@ -121,7 +121,7 @@ export default function BaseChart({ title, processData, chartOptions = {} }) {
   return (
     <div className="w-full h-full">
       <div className="bg-white rounded-2xl shadow-lg h-full flex flex-col">
-        <div className="flex justify-between items-center px-6 pt-6 pb-4">
+        <div className="flex justify-between items-center px-6 py-2">
           <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
           <button
             onClick={handleSync}

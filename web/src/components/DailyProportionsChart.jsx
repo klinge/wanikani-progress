@@ -1,4 +1,3 @@
-import React from 'react';
 import BaseChart from './BaseChart';
 
 export default function DailyProportionsChart() {
@@ -76,10 +75,17 @@ export default function DailyProportionsChart() {
             return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
           }
         }
+      },
+      legend: {
+        position: 'bottom',
       }
     },
     scales: {
+      x: {
+        stacked: true,
+      },
       y: {
+        stacked: true,
         min: 0,
         max: 100,
         ticks: {
