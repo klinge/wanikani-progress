@@ -883,7 +883,7 @@ Contributions are welcome! Please:
 
 ## License
 
-MIT
+GNU GPL v3
 
 ## Acknowledgments
 

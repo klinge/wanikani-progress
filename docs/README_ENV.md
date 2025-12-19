@@ -44,7 +44,7 @@ WANIKANI_API_TOKEN=your_token go run cmd/wanikani-api/main.go
 |----------|----------|---------|-------------|
 | `WANIKANI_API_TOKEN` | Yes | - | Your WaniKani API token (get it from https://www.wanikani.com/settings/personal_access_tokens) |
 | `DATABASE_PATH` | No | `./wanikani.db` | Path to the SQLite database file |
-| `SYNC_SCHEDULE` | No | `0 2 * * *` | Cron expression for daily sync (default: 2 AM daily) |
+| `SYNC_SCHEDULE` | No | `0 2 * * *` | NOT USED: Cron expression for daily sync (default: 2 AM daily) |
 | `API_PORT` | No | `8080` | Port for the API server |
 | `LOG_LEVEL` | No | `info` | Logging level (debug, info, warn, error) |
 

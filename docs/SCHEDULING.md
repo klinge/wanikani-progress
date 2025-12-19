@@ -1,6 +1,6 @@
 # Scheduling Daily Syncs
 
-The WaniKani API application provides a `/api/sync` endpoint that can be triggered manually or automatically via system cron.
+The WaniKani API application provides a `/api/sync` endpoint that can be triggered manually. 
 
 ## Using System Cron (Recommended)
 
@@ -187,15 +187,4 @@ Expected response:
 
 ## Alternative: Programmatic Scheduler
 
-If you prefer to have the scheduler built into the application (as originally specified in the requirements), you can implement task 9 from the tasks.md file. This would use the `robfig/cron` library to schedule syncs internally.
-
-**Advantages of programmatic scheduler:**
-- Self-contained application
-- No external cron configuration needed
-- Easier to test scheduling logic
-
-**Advantages of system cron (current approach):**
-- Simpler application code
-- Easier to modify schedule without redeploying
-- Standard Unix approach
-- Works even if application restarts
+Currently there is no programmatic scheduler built into the application
