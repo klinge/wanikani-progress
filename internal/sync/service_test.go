@@ -24,12 +24,12 @@ func testLogger() *logrus.Logger {
 
 // Mock client for testing
 type mockClient struct {
-	subjects   []domain.Subject
+	subjects    []domain.Subject
 	assignments []domain.Assignment
-	reviews    []domain.Review
-	statistics *domain.Statistics
-	fetchError error
-	delay      time.Duration
+	reviews     []domain.Review
+	statistics  *domain.Statistics
+	fetchError  error
+	delay       time.Duration
 }
 
 func (m *mockClient) SetAPIToken(token string) {}

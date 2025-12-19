@@ -14,10 +14,10 @@ const (
 
 // Subject represents a WaniKani learning item
 type Subject struct {
-	ID            int       `json:"id"`
-	Object        string    `json:"object"`
-	URL           string    `json:"url"`
-	DataUpdatedAt time.Time `json:"data_updated_at"`
+	ID            int         `json:"id"`
+	Object        string      `json:"object"`
+	URL           string      `json:"url"`
+	DataUpdatedAt time.Time   `json:"data_updated_at"`
 	Data          SubjectData `json:"data"`
 }
 
@@ -41,10 +41,10 @@ type Reading struct {
 
 // Assignment represents a user's progress on a subject
 type Assignment struct {
-	ID            int       `json:"id"`
-	Object        string    `json:"object"`
-	URL           string    `json:"url"`
-	DataUpdatedAt time.Time `json:"data_updated_at"`
+	ID            int            `json:"id"`
+	Object        string         `json:"object"`
+	URL           string         `json:"url"`
+	DataUpdatedAt time.Time      `json:"data_updated_at"`
 	Data          AssignmentData `json:"data"`
 }
 
@@ -59,10 +59,10 @@ type AssignmentData struct {
 
 // Review represents a user's answer to a quiz question
 type Review struct {
-	ID            int       `json:"id"`
-	Object        string    `json:"object"`
-	URL           string    `json:"url"`
-	DataUpdatedAt time.Time `json:"data_updated_at"`
+	ID            int        `json:"id"`
+	Object        string     `json:"object"`
+	URL           string     `json:"url"`
+	DataUpdatedAt time.Time  `json:"data_updated_at"`
 	Data          ReviewData `json:"data"`
 }
 
@@ -76,9 +76,9 @@ type ReviewData struct {
 
 // Statistics represents summary statistics
 type Statistics struct {
-	Object        string    `json:"object"`
-	URL           string    `json:"url"`
-	DataUpdatedAt time.Time `json:"data_updated_at"`
+	Object        string         `json:"object"`
+	URL           string         `json:"url"`
+	DataUpdatedAt time.Time      `json:"data_updated_at"`
 	Data          StatisticsData `json:"data"`
 }
 
@@ -162,8 +162,8 @@ type AssignmentSnapshot struct {
 
 // AssignmentSnapshotSummary represents a nested structure of snapshots grouped by date
 type AssignmentSnapshotSummary struct {
-	Date string                     `json:"date"`
-	Data map[string]map[string]int  `json:"data"` // SRS stage name -> subject type -> count
+	Date string                    `json:"date"`
+	Data map[string]map[string]int `json:"data"` // SRS stage name -> subject type -> count
 }
 
 // GetSRSStageName returns the human-readable name for an SRS stage

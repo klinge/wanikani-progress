@@ -40,14 +40,14 @@ type ErrorDetail struct {
 func (h *Handler) writeError(w http.ResponseWriter, code int, errorCode, message string, details map[string]string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
-	
+
 	h.logger.WithFields(logrus.Fields{
 		"status_code": code,
 		"error_code":  errorCode,
 		"message":     message,
 		"details":     details,
 	}).Warn("API error response")
-	
+
 	json.NewEncoder(w).Encode(ErrorResponse{
 		Error: ErrorDetail{
 			Code:    errorCode,
@@ -93,7 +93,7 @@ func (h *Handler) handleServiceError(w http.ResponseWriter, err error) {
 
 // contains checks if a string contains a substring (case-insensitive)
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || 
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && stringContains(s, substr)))
 }
 
@@ -382,14 +382,14 @@ type SyncStatusResponse struct {
 // HandleGetSyncStatus handles GET /api/sync/status
 func (h *Handler) HandleGetSyncStatus(w http.ResponseWriter, r *http.Request) {
 	h.logger.WithField("endpoint", "GET /api/sync/status").Debug("Handling request")
-	
+
 	syncing := h.service.GetSyncStatus()
-	
+
 	h.logger.WithFields(logrus.Fields{
 		"endpoint": "GET /api/sync/status",
 		"syncing":  syncing,
 	}).Debug("Request completed successfully")
-	
+
 	writeJSON(w, SyncStatusResponse{
 		Syncing: syncing,
 	})

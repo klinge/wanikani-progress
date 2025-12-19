@@ -40,7 +40,7 @@ func TestLoad_WithDefaults(t *testing.T) {
 	os.Unsetenv("SYNC_SCHEDULE")
 	os.Unsetenv("API_PORT")
 	os.Unsetenv("LOG_LEVEL")
-	
+
 	// Set only required variable
 	os.Setenv("WANIKANI_API_TOKEN", "test-token")
 	defer func() {

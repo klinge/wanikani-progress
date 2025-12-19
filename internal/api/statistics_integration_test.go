@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/sirupsen/logrus"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/sirupsen/logrus"
 	"wanikani-api/internal/domain"
 	"wanikani-api/internal/migrations"
 	"wanikani-api/internal/store/sqlite"

@@ -888,7 +888,7 @@ MIT
 ## Acknowledgments
 
 - [WaniKani](https://www.wanikani.com) for providing the API
-- Built with Go and SQLite
+- Built with Go, SQLite and React
 - Property-based testing with [gopter](https://github.com/leanovate/gopter)
 
 ## Support

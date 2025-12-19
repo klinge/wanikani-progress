@@ -12,7 +12,6 @@ import (
 	"wanikani-api/internal/migrations"
 )
 
-
 // setupTestStore creates a test store with migrations applied
 func setupTestStore(t *testing.T, dbPath string) *Store {
 	t.Helper()
@@ -377,7 +376,7 @@ func TestStore_StatisticsHistoricalTracking(t *testing.T) {
 	t.Run("snapshots are stored with timestamps", func(t *testing.T) {
 		// Create multiple statistics snapshots with different timestamps
 		baseTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-		
+
 		for i := 0; i < 5; i++ {
 			stats := domain.Statistics{
 				Object:        "report",
@@ -398,7 +397,7 @@ func TestStore_StatisticsHistoricalTracking(t *testing.T) {
 					},
 				},
 			}
-			
+
 			timestamp := baseTime.Add(time.Duration(i) * 24 * time.Hour)
 			err := store.InsertStatistics(ctx, stats, timestamp)
 			if err != nil {
@@ -446,7 +445,7 @@ func TestStore_StatisticsHistoricalTracking(t *testing.T) {
 		// Verify all returned snapshots are within the date range
 		for _, snapshot := range filtered {
 			if snapshot.Timestamp.Before(dateRange.From) || snapshot.Timestamp.After(dateRange.To) {
-				t.Errorf("snapshot timestamp %v is outside date range [%v, %v]", 
+				t.Errorf("snapshot timestamp %v is outside date range [%v, %v]",
 					snapshot.Timestamp, dateRange.From, dateRange.To)
 			}
 		}
@@ -455,7 +454,7 @@ func TestStore_StatisticsHistoricalTracking(t *testing.T) {
 	t.Run("all historical snapshots are preserved", func(t *testing.T) {
 		// Insert more snapshots to verify preservation
 		baseTime := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
-		
+
 		for i := 0; i < 10; i++ {
 			stats := domain.Statistics{
 				Object:        "report",
@@ -470,7 +469,7 @@ func TestStore_StatisticsHistoricalTracking(t *testing.T) {
 					},
 				},
 			}
-			
+
 			timestamp := baseTime.Add(time.Duration(i) * time.Hour)
 			err := store.InsertStatistics(ctx, stats, timestamp)
 			if err != nil {
@@ -515,7 +514,7 @@ func TestStore_StatisticsHistoricalTracking(t *testing.T) {
 
 		// The latest should match the first in the list (DESC order)
 		if latest.ID != allSnapshots[0].ID {
-			t.Errorf("latest statistics ID %d doesn't match most recent snapshot ID %d", 
+			t.Errorf("latest statistics ID %d doesn't match most recent snapshot ID %d",
 				latest.ID, allSnapshots[0].ID)
 		}
 
@@ -582,14 +581,14 @@ func TestStore_StatisticsHistoricalTracking(t *testing.T) {
 		}
 
 		snapshot := retrieved[0]
-		
+
 		// Verify lessons data
 		if len(snapshot.Statistics.Data.Lessons) != 2 {
 			t.Errorf("expected 2 lesson statistics, got %d", len(snapshot.Statistics.Data.Lessons))
 		}
 
 		if len(snapshot.Statistics.Data.Lessons[0].SubjectIDs) != 5 {
-			t.Errorf("expected 5 subject IDs in first lesson, got %d", 
+			t.Errorf("expected 5 subject IDs in first lesson, got %d",
 				len(snapshot.Statistics.Data.Lessons[0].SubjectIDs))
 		}
 

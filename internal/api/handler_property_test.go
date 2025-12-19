@@ -224,7 +224,7 @@ func TestProperty_QueryFilterCorrectness(t *testing.T) {
 				if filterFrom != nil {
 					fromUnix := filterFrom.Unix()
 					if resultUnix < fromUnix {
-						t.Logf("result created_at %v (unix: %d) is before filter from %v (unix: %d)", 
+						t.Logf("result created_at %v (unix: %d) is before filter from %v (unix: %d)",
 							result.Data.CreatedAt, resultUnix, *filterFrom, fromUnix)
 						return false
 					}
@@ -232,7 +232,7 @@ func TestProperty_QueryFilterCorrectness(t *testing.T) {
 				if filterTo != nil {
 					toUnix := filterTo.Unix()
 					if resultUnix > toUnix {
-						t.Logf("result created_at %v (unix: %d) is after filter to %v (unix: %d)", 
+						t.Logf("result created_at %v (unix: %d) is after filter to %v (unix: %d)",
 							result.Data.CreatedAt, resultUnix, *filterTo, toUnix)
 						return false
 					}
@@ -244,7 +244,7 @@ func TestProperty_QueryFilterCorrectness(t *testing.T) {
 			for _, review := range testData.Reviews {
 				matches := true
 				reviewUnix := review.Data.CreatedAt.Unix()
-				
+
 				if filterFrom != nil && reviewUnix < filterFrom.Unix() {
 					matches = false
 				}
@@ -335,7 +335,7 @@ func genOptionalLevel() gopter.Gen {
 func genAssignmentTestData() gopter.Gen {
 	return genSubjects().FlatMap(func(subjects interface{}) gopter.Gen {
 		subjectList := subjects.([]domain.Subject)
-		
+
 		if len(subjectList) == 0 {
 			return gen.Const(assignmentTestData{
 				Subjects:    []domain.Subject{},
@@ -377,7 +377,7 @@ func genOptionalSRSStage() gopter.Gen {
 func genReviewTestData() gopter.Gen {
 	return genAssignmentTestData().FlatMap(func(assignmentData interface{}) gopter.Gen {
 		data := assignmentData.(assignmentTestData)
-		
+
 		if len(data.Assignments) == 0 {
 			return gen.Const(reviewTestData{
 				Subjects:    data.Subjects,
@@ -484,7 +484,7 @@ func TestProperty_APIAuthenticationEnforcement(t *testing.T) {
 				method = "POST"
 			}
 			req := createTestRequest(method, endpoint, nil)
-			
+
 			// Set authorization header based on providedToken
 			if providedToken != "" {
 				req.Header.Set("Authorization", "Bearer "+providedToken)
@@ -611,10 +611,10 @@ func genToken() gopter.Gen {
 
 func genOptionalToken() gopter.Gen {
 	return gen.OneGenOf(
-		gen.Const(""),                    // No token
-		genToken(),                       // Valid format token (but wrong value)
-		gen.Const("invalid"),             // Invalid format
-		gen.Const("Bearer token"),        // Token with Bearer prefix (should not include it)
+		gen.Const(""),             // No token
+		genToken(),                // Valid format token (but wrong value)
+		gen.Const("invalid"),      // Invalid format
+		gen.Const("Bearer token"), // Token with Bearer prefix (should not include it)
 	)
 }
 
