@@ -83,7 +83,7 @@ The application is configured using environment variables. You can set these in 
 | `WANIKANI_API_TOKEN` | **Yes** | - | Your WaniKani API token for accessing the external API |
 | `LOCAL_API_TOKEN` | No | - | Token for authenticating requests to your local API (recommended) |
 | `DATABASE_PATH` | No | `./data/wanikani.db` | Path to the SQLite database file |
-| `SYNC_SCHEDULE` | No | `0 2 * * *` | Cron expression for scheduled syncs (default: 2 AM daily) |
+| `SYNC_SCHEDULE` | No | `0 2 * * *` | NOT USED: Cron expression for scheduled syncs (default: 2 AM daily) |
 | `API_PORT` | No | `8080` | Port for the API server to listen on |
 | `LOG_LEVEL` | No | `info` | Logging verbosity: `debug`, `info`, `warn`, `error` |
 
@@ -823,7 +823,7 @@ wanikani-api/
 │   └── wanikani/          # WaniKani API client
 ├── data/                  # Database files (gitignored)
 ├── docs/                  # Additional documentation
-├── scripts/               # Build and utility scripts
+├── web/                   # React web client for the Go api
 ├── .env.example           # Example configuration
 ├── Makefile               # Build automation
 └── README.md              # This file
@@ -883,7 +883,7 @@ Contributions are welcome! Please:
 
 ## License
 
-[Add your license here]
+MIT
 
 ## Acknowledgments
 
